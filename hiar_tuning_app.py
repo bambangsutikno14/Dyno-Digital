@@ -4,7 +4,7 @@ import math
 import plotly.graph_objects as go
 
 # --- 1. SETTING PAGE ---
-st.set_page_config(page_title="MotoTuning Master | High-End Dyno", layout="wide")
+st.set_page_config(page_title="Hiar Lima Pendawa Tuning", layout="wide")
 
 # --- 2. SESSION STATE (Storage) ---
 if 'history' not in st.session_state:
