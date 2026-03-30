@@ -10,7 +10,7 @@ st.set_page_config(page_title="Hiar Lima Pendawa Tuning", layout="wide")
 if 'history' not in st.session_state:
     st.session_state.history = []
 
-# --- 2. VERIFIED DATABASE ---
+# --- 2. VERIFIED DATABASE (LENGKAP: MIO, NMAX, VARIO, BEAT) ---
 DATABASE_REF = {
     "YAMAHA": {
         "Mio Karbu / Soul 115": {
@@ -27,38 +27,43 @@ DATABASE_REF = {
             "bore": 57.3, "stroke": 57.9, "v_head": 15.6, "valve": 29.0, "venturi": 26, 
             "ps_std": 13.1, "trq_std": 13.4, "peak_rpm": 8500, "limit_std": 9800
         },
+        "BeAT FI / Scoopy": {
+            "bore": 50.0, "stroke": 55.1, "v_head": 12.7, "valve": 22.0, "venturi": 22, 
+            "ps_std": 8.68, "trq_std": 9.01, "peak_rpm": 7500, "limit_std": 9200
+        },
     }
 }
 
-# --- 3. CORE LOGIC (REVISED DROP-OFF) ---
-def calculate_engine_v4_5(cc, bore, stroke, cr, rpm_limit, valve_in, venturi, std):
+# --- 3. CORE LOGIC (DROPOFF TAJAM & KALIBRASI) ---
+def calculate_engine_final(cc, bore, stroke, cr, rpm_limit, valve_in, venturi, std):
     rpms = np.arange(2000, rpm_limit + 100, 100)
     pss, torques = [], []
     
     target_hp = std['ps_std'] * 0.986
-    eff = 0.84 if "Mio" in str(std) else 0.90
+    # Faktor efisiensi untuk mengunci angka pabrikan
+    eff = 0.84 if "Mio" in str(std) or "BeAT" in str(std) else 0.91
     bmep_lock = (target_hp * 950000) / (cc * std['peak_rpm'] * eff)
     
     for r in rpms:
-        # Penurunan VE lebih tajam setelah Peak RPM agar grafik turun jelas
+        # Kurva Nafas (Turun tajam setelah peak)
         if r <= std['peak_rpm']:
             ve = math.exp(-((r - std['peak_rpm']) / 4500)**2)
         else:
-            ve = math.exp(-((r - std['peak_rpm']) / 2000)**2) # Drop lebih curam
+            ve = math.exp(-((r - std['peak_rpm']) / 1800)**2) # Drop off lebih curam
         
         ps_speed = (2 * stroke * r) / 60000
         gs = ((bore / valve_in)**2) * ps_speed
-        if gs > 105: ve *= (105 / gs) 
+        if gs > 105: ve *= (105 / gs) # Faktor tercekik Graham Bell
         
         hp_val = (bmep_lock * cc * r * ve * eff) / 950000
-        if bore > std['bore']: hp_val *= (1 + (cr - 9.5) * 0.02)
+        if bore > std['bore']: hp_val *= (1 + (cr - 9.5) * 0.02) # Bonus Bore-up
             
         pss.append(round(hp_val / 0.986, 2))
         torques.append(round((hp_val * 7127) / r if r > 0 else 0, 2))
         
     return rpms, pss, torques
 
-# --- 4. SIDEBAR ---
+# --- 4. SIDEBAR (DENGAN KETERANGAN STD) ---
 with st.sidebar:
     st.header("🏁 MOTOR CONFIG")
     merk = st.selectbox("Pilih Merk", list(DATABASE_REF.keys()))
@@ -67,11 +72,13 @@ with st.sidebar:
 
     st.write("---")
     label_run = st.text_input("Label Run", value=f"Run {len(st.session_state.history)+1}")
-    in_bore = st.number_input("Bore (mm)", value=std['bore'], step=0.1)
-    in_vhead = st.number_input("Vol Head (cc)", value=std['v_head'], step=0.1)
-    in_valve = st.number_input("Klep In (mm)", value=std['valve'], step=0.1)
-    in_venturi = st.number_input("Venturi (mm)", value=float(std['venturi']), step=1.0)
-    in_rpm = st.number_input("Limit RPM", value=int(std['limit_std']), step=100)
+    
+    # Menampilkan (std) di setiap label input
+    in_bore = st.number_input(f"Bore (std: {std['bore']} mm)", value=std['bore'], step=0.1)
+    in_vhead = st.number_input(f"Vol Head (std: {std['v_head']} cc)", value=std['v_head'], step=0.1)
+    in_valve = st.number_input(f"Klep In (std: {std['valve']} mm)", value=std['valve'], step=0.1)
+    in_venturi = st.number_input(f"Venturi (std: {std['venturi']} mm)", value=float(std['venturi']), step=1.0)
+    in_rpm = st.number_input(f"Limit RPM (std: {std['limit_std']})", value=int(std['limit_std']), step=100)
 
     if st.button("🚀 ANALYZE"):
         cc = (math.pi * (in_bore**2) * std['stroke']) / 4000
@@ -79,10 +86,9 @@ with st.sidebar:
         ps_m = (2 * std['stroke'] * in_rpm) / 60000
         gs_m = ((in_bore/in_valve)**2)*ps_m
         
-        rpms, pss, torques = calculate_engine_v4_5(cc, in_bore, std['stroke'], cr, in_rpm, in_valve, in_venturi, std)
+        rpms, pss, torques = calculate_engine_final(cc, in_bore, std['stroke'], cr, in_rpm, in_valve, in_venturi, std)
         
-        idx_ps = np.argmax(pss)
-        idx_trq = np.argmax(torques)
+        idx_ps, idx_trq = np.argmax(pss), np.argmax(torques)
         
         st.session_state.history.append({
             "Run": f"{label_run} {model.split(' ')[0]}", 
@@ -94,10 +100,10 @@ with st.sidebar:
 
 # --- 5. MAIN PANEL ---
 st.title("📟 Hiar Lima Pendawa Tuning (Beta)")
-st.warning("⚠️ **Disclaimer:** Hitungan adalah prediksi berdasarkan spesifikasi dan kalkulasi sistem. Gasspoll")
+st.warning("⚠️ **Disclaimer:** Hitungan adalah prediksi berdasarkan spesifikasi dan kalkulasi sistem. GassPoll")
 
 if st.session_state.history:
-    # --- EXPERT SAFETY ANALYSIS ---
+    # --- EXPERT SAFETY ANALYSIS (DENGAN INDIKATOR WARNA) ---
     latest = st.session_state.history[-1]
     st.subheader(f"🛡️ Safety Analysis: {latest['Run']}")
     c1, c2, c3 = st.columns(3)
@@ -111,27 +117,13 @@ if st.session_state.history:
         color = "green" if latest['GS_Max'] <= 100 else "red"
         st.markdown(f"### <span style='color:{color}'>Gas Speed: {latest['GS_Max']:.2f} m/s</span>", unsafe_allow_html=True)
 
-    # --- TABLE (CENTER ALIGNED) ---
+    # --- TABLE (RATA TENGAH & 2 DESIMAL) ---
     st.write("---")
+    st.markdown("""<style> th, td { text-align: center !important; } </style>""", unsafe_allow_html=True)
     df = pd.DataFrame(st.session_state.history)
-    
-    # CSS untuk tengahkan tabel
-    st.markdown("""
-        <style>
-            div[data-testid="stDataFrame"] div[class^="st-"] {
-                display: flex;
-                justify-content: center;
-            }
-            th, td { text-align: center !important; }
-        </style>
-        """, unsafe_allow_html=True)
-    
-    st.dataframe(
-        df[["Run", "CC", "CR", "Max_PS", "RPM_PS", "Max_Nm", "RPM_Nm"]], 
-        hide_index=True, use_container_width=True
-    )
+    st.dataframe(df[["Run", "CC", "CR", "Max_PS", "RPM_PS", "Max_Nm", "RPM_Nm"]], hide_index=True, use_container_width=True)
 
-    # --- GRAPH ---
+    # --- GRAPH (LABEL RUN DI UJUNG GARIS) ---
     fig = go.Figure()
     for run in st.session_state.history:
         # Garis Power
@@ -141,22 +133,16 @@ if st.session_state.history:
             text=[run['Run'] if i == len(run['rpms'])-1 else "" for i in range(len(run['rpms']))],
             textposition="middle right"
         ))
-        # Tag Power Max
         fig.add_annotation(x=run['RPM_PS'], y=run['Max_PS'], text=f"{run['Max_PS']} PS", showarrow=True, arrowhead=2)
         
         # Garis Torque
-        fig.add_trace(go.Scatter(
-            x=run['rpms'], y=run['torques'], name=f"{run['Run']} (Nm)",
-            line=dict(dash='dot'), yaxis="y2"
-        ))
-        # Tag Torque Max
-        fig.add_annotation(x=run['RPM_Nm'], y=run['Max_Nm'], text=f"{run['Max_Nm']} Nm", 
-                           showarrow=True, arrowhead=2, yref="y2", ay=30)
+        fig.add_trace(go.Scatter(x=run['rpms'], y=run['torques'], name=f"{run['Run']} (Nm)", line=dict(dash='dot'), yaxis="y2"))
+        fig.add_annotation(x=run['RPM_Nm'], y=run['Max_Nm'], text=f"{run['Max_Nm']} Nm", showarrow=True, arrowhead=2, yref="y2", ay=30)
 
     fig.update_layout(
         template="plotly_dark", height=600,
         xaxis_title="RPM", yaxis_title="Power (PS)",
         yaxis2=dict(overlaying="y", side="right", title="Torque (Nm)"),
-        showlegend=False # Legend dimatikan karena nama sudah ada di ujung garis
+        showlegend=False
     )
     st.plotly_chart(fig, use_container_width=True)
