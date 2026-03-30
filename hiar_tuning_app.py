@@ -106,7 +106,7 @@ with st.sidebar:
         })
 
 # --- 6. MAIN PANEL ---
-st.title("📟 Hiar Lima Pendawa: Engine Analyzer")
+st.title("📟 Hiar Lima Pendawa Tuning")
 
 if st.session_state.history:
     # --- SAFETY ANALYSIS ---
