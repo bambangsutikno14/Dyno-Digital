@@ -85,7 +85,7 @@ with st.sidebar:
         })
 
 # --- 5. MAIN PANEL ---
-st.title("📟 Hiar Lima Pendawa: Precision Engine Analyzer")
+st.title("📟 Hiar Lima Pendawa Tuning")
 
 if st.session_state.history:
     latest = st.session_state.history[-1]
