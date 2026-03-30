@@ -10,56 +10,52 @@ st.set_page_config(page_title="Hiar Lima Pendawa Tuning", layout="wide")
 if 'history' not in st.session_state:
     st.session_state.history = []
 
-# --- 2. VERIFIED DATABASE (SATUAN PS SESUAI BROSUR) ---
+# --- 2. VERIFIED DATABASE (KLAIM BROSUR PS & NM) ---
 DATABASE_REF = {
     "YAMAHA": {
         "Mio Karbu / Soul 115": {
             "bore": 50.0, "stroke": 57.9, "v_head": 13.7, "valve": 23.0, "venturi": 24, 
-            "ps_std": 8.9, "trq_std": 7.84, "peak_rpm": 8000, "efficiency": 0.85
+            "ps_std": 8.9, "trq_std": 7.84, "peak_rpm": 8000, "limit_std": 9000
         },
         "NMAX 155 / Aerox": {
             "bore": 58.0, "stroke": 58.7, "v_head": 14.6, "valve": 20.5, "venturi": 28, 
-            "ps_std": 15.3, "trq_std": 13.9, "peak_rpm": 8000, "efficiency": 0.92
+            "ps_std": 15.3, "trq_std": 13.9, "peak_rpm": 8000, "limit_std": 9500
         },
     },
     "HONDA": {
         "Vario 150 / PCX": {
             "bore": 57.3, "stroke": 57.9, "v_head": 15.6, "valve": 29.0, "venturi": 26, 
-            "ps_std": 13.1, "trq_std": 13.4, "peak_rpm": 8500, "efficiency": 0.90
+            "ps_std": 13.1, "trq_std": 13.4, "peak_rpm": 8500, "limit_std": 9800
         },
         "BeAT FI / Scoopy": {
             "bore": 50.0, "stroke": 55.1, "v_head": 12.7, "valve": 22.0, "venturi": 22, 
-            "ps_std": 8.68, "trq_std": 9.01, "peak_rpm": 7500, "efficiency": 0.88
+            "ps_std": 8.68, "trq_std": 9.01, "peak_rpm": 7500, "limit_std": 9200
         },
     }
 }
 
-# --- 3. CORE LOGIC (PS TO HP CONVERSION) ---
-def calculate_engine_pro(cc, bore, stroke, cr, rpm_limit, valve_in, venturi, std):
+# --- 3. CORE LOGIC ---
+def calculate_engine_final(cc, bore, stroke, cr, rpm_limit, valve_in, venturi, std):
     rpms = np.arange(2000, rpm_limit + 100, 100)
     hps, pss, torques = [], [], []
     
-    # Konversi Target PS ke HP (1 PS = 0.986 HP)
     target_hp = std['ps_std'] * 0.986
-    
-    # BMEP Lock (Mengunci agar standar selalu pas)
-    # BMEP = (HP * 950000) / (CC * RPM * Efficiency)
-    bmep_lock = (target_hp * 950000) / (cc * std['peak_rpm'] * std['efficiency'])
+    # Efficiency factor untuk mengunci ke klaim pabrikan
+    eff = 0.88 if "NMAX" in str(std) else 0.82 
+    bmep_lock = (target_hp * 950000) / (cc * std['peak_rpm'] * eff)
     
     for r in rpms:
-        # Kurva Nafas Parabolic
-        ve = math.exp(-((r - std['peak_rpm']) / 3500)**2)
+        # Kurva Nafas (Drop-off setelah Peak)
+        ve = math.exp(-((r - std['peak_rpm']) / 3400)**2)
         
-        # Expert Analysis: Gas Speed (Klep vs Bore)
+        # Gas Speed Analysis
         ps_speed = (2 * stroke * r) / 60000
         gs = ((bore / valve_in)**2) * ps_speed
         if gs > 105: ve *= (105 / gs) 
         
-        # Kalkulasi HP & PS
-        hp_val = (bmep_lock * cc * r * ve * std['efficiency']) / 950000
-        # Jika Bore Up atau Kompresi naik, berikan bonus tenaga proporsional
-        if bore > std['bore'] or cr > 11.0:
-            hp_val *= (1 + (cr - 9.5) * 0.02)
+        hp_val = (bmep_lock * cc * r * ve * eff) / 950000
+        # Koreksi Bore-up
+        if bore > std['bore']: hp_val *= (1 + (cr - 9.5) * 0.018)
             
         ps_val = hp_val / 0.986
         trq_val = (hp_val * 7127) / r if r > 0 else 0
@@ -70,9 +66,9 @@ def calculate_engine_pro(cc, bore, stroke, cr, rpm_limit, valve_in, venturi, std
         
     return rpms, hps, pss, torques
 
-# --- 4. SIDEBAR ---
+# --- 4. SIDEBAR (PERIMETER INPUT) ---
 with st.sidebar:
-    st.header("🏁 MOTOR SELECTION")
+    st.header("🏁 MOTOR CONFIG")
     merk = st.selectbox("Pilih Merk", list(DATABASE_REF.keys()))
     model = st.selectbox("Model", list(DATABASE_REF[merk].keys()))
     std = DATABASE_REF[merk][model]
@@ -83,7 +79,10 @@ with st.sidebar:
     in_vhead = st.number_input(f"Vol Head ({std['v_head']} cc)", value=std['v_head'], step=0.1)
     in_valve = st.number_input(f"Klep In ({std['valve']} mm)", value=std['valve'], step=0.1)
     in_venturi = st.number_input(f"Venturi ({std['venturi']} mm)", value=float(std['venturi']), step=1.0)
-    in_rpm = st.slider("Limit RPM", 5000, 15000, int(std['peak_rpm'] + 1500))
+    
+    # Input RPM Limit menggunakan Number Input (Kelipatan 100) bukan Slider
+    in_rpm = st.number_input(f"Limit RPM (Std: {std['limit_std']})", 
+                             value=int(std['limit_std']), step=100)
 
     if st.button("🚀 ANALYZE"):
         cc = (math.pi * (in_bore**2) * std['stroke']) / 4000
@@ -91,54 +90,66 @@ with st.sidebar:
         ps_m = (2 * std['stroke'] * in_rpm) / 60000
         gs_m = ((in_bore/in_valve)**2)*ps_m
         
-        rpms, hps, pss, torques = calculate_engine_pro(cc, in_bore, std['stroke'], cr, in_rpm, in_valve, in_venturi, std)
+        rpms, hps, pss, torques = calculate_engine_final(cc, in_bore, std['stroke'], cr, in_rpm, in_valve, in_venturi, std)
         
         idx = np.argmax(pss)
         st.session_state.history.append({
-            "Run": f"{label_run} ({model.split(' ')[0]})", "CC": cc, "CR": cr, "PS_Max": ps_m, "GS_Max": gs_m,
+            "Run": f"{label_run} {model.split(' ')[0]}", 
+            "CC": cc, "CR": cr, "PS_Max": ps_m, "GS_Max": gs_m,
             "Max_PS": pss[idx], "Max_HP": hps[idx], "Max_Nm": torques[np.argmax(torques)], "RPM_Peak": rpms[idx],
             "rpms": rpms, "pss": pss, "torques": torques
         })
 
 # --- 5. MAIN PANEL ---
 st.title("📟 Hiar Lima Pendawa Tuning (Beta)")
-st.caption("Ver 3.0 - Precision & Expert Tuning Mode")
-
-st.warning("⚠️ **Disclaimer:** Hasil kalkulasi adalah estimasi prediktif berdasarkan spesifikasi input. Margin error ±5% dapat terjadi tergantung kondisi mesin aktual.")
+st.warning("⚠️ **Disclaimer:** Hasil kalkulasi adalah estimasi prediktif berdasarkan spesifikasi dan sistem kalkulasi mekanis. Hasil aktual dapat bervariasi ±5%.")
 
 if st.session_state.history:
     latest = st.session_state.history[-1]
     
-    # --- EXPERT SAFETY ANALYSIS (GRAHAM BELL) ---
+    # --- EXPERT SAFETY ANALYSIS ---
     st.subheader(f"🛡️ Safety Analysis: {latest['Run']}")
     c1, c2, c3 = st.columns(3)
-    
     with c1:
         color = "blue" if latest['PS_Max'] <= 18 else "green" if latest['PS_Max'] <= 21 else "red"
         st.markdown(f"### <span style='color:{color}'>Piston Speed: {latest['PS_Max']:.2f} m/s</span>", unsafe_allow_html=True)
-        st.write(f"Status: {'Aman' if latest['PS_Max']<=18 else 'Tuned' if latest['PS_Max']<=21 else 'Risiko Tinggi'}")
-
     with c2:
         color = "blue" if latest['CR'] <= 11.5 else "green" if latest['CR'] <= 13.0 else "red"
         st.markdown(f"### <span style='color:{color}'>Static CR: {latest['CR']:.2f}:1</span>", unsafe_allow_html=True)
-        st.write(f"Rekomendasi: {'Pertamax/92' if latest['CR']<=11.5 else 'Turbo/98' if latest['CR']<=13.0 else 'Racing Fuel'}")
-
     with c3:
         color = "green" if latest['GS_Max'] <= 100 else "red"
         st.markdown(f"### <span style='color:{color}'>Gas Speed: {latest['GS_Max']:.2f} m/s</span>", unsafe_allow_html=True)
-        st.write(f"Nafas: {'Efisien' if latest['GS_Max']<=100 else 'Tercekik (Choked)'}")
 
     # --- TABLE ---
     st.write("---")
     df = pd.DataFrame(st.session_state.history)
     st.dataframe(df[["Run", "CC", "CR", "Max_PS", "Max_HP", "Max_Nm", "RPM_Peak"]], hide_index=True, use_container_width=True)
 
-    # --- GRAPH ---
+    # --- GRAPH (LABLE DI AKHIR GARIS & KETERANGAN PEAK) ---
     fig = go.Figure()
     for run in st.session_state.history:
-        fig.add_trace(go.Scatter(x=run['rpms'], y=run['pss'], name=f"{run['Run']} (PS)"))
-        fig.add_trace(go.Scatter(x=run['rpms'], y=run['torques'], name=f"{run['Run']} (Nm)", line=dict(dash='dot'), yaxis="y2"))
+        # Power Curve
+        fig.add_trace(go.Scatter(
+            x=run['rpms'], y=run['pss'], 
+            name=f"{run['Run']} (PS)",
+            mode='lines+text',
+            text=[f"{run['Max_PS']} PS @ {run['RPM_Peak']}"] if r == run['RPM_Peak'] else "" , # Logika sederhana label
+            textposition="top right"
+        ))
+        
+        # Tambahkan anotasi di titik puncak
+        fig.add_annotation(x=run['RPM_Peak'], y=run['Max_PS'],
+                           text=f"Peak: {run['Max_PS']} PS", showarrow=True, arrowhead=1)
+        
+        # Torsi Curve
+        fig.add_trace(go.Scatter(x=run['rpms'], y=run['torques'], name=f"{run['Run']} (Nm)", 
+                                 line=dict(dash='dot'), yaxis="y2"))
     
-    fig.update_layout(template="plotly_dark", height=500, xaxis_title="RPM", yaxis_title="Power (PS)", 
-                      yaxis2=dict(overlaying="y", side="right", title="Torque (Nm)"), legend=dict(orientation="h", y=1.1))
+    fig.update_layout(
+        template="plotly_dark", height=600,
+        xaxis_title="RPM", yaxis_title="Power (PS)",
+        yaxis2=dict(overlaying="y", side="right", title="Torque (Nm)"),
+        showlegend=True,
+        legend=dict(orientation="h", y=-0.2) # Legend di bawah agar tidak menutupi grafik
+    )
     st.plotly_chart(fig, use_container_width=True)
