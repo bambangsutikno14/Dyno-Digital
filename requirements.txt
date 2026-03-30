@@ -1,6 +1,4 @@
 streamlit
 streamlit-echarts
 numpy
-pandas
 plotly
-matplotlib
