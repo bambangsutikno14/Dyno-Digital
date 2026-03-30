@@ -10,10 +10,10 @@ st.set_page_config(page_title="Hiar Lima Pendawa Tuning", layout="wide")
 if 'history' not in st.session_state:
     st.session_state.history = []
 
-# --- 2. VERIFIED FACTORY DATABASE ---
+# --- 2. DATABASE PABRIKAN (VERIFIED DATA) ---
 DATABASE_REF = {
     "YAMAHA": {
-        "Mio Karbu / Soul 115": {
+        "Mio Karbu": {
             "bore": 50.0, "stroke": 57.9, "v_head": 13.7, "valve": 23.0, "venturi": 24, 
             "target_hp": 6.54, "peak_hp_rpm": 8000, "target_nm": 7.84, "peak_nm_rpm": 7000
         },
@@ -34,33 +34,29 @@ DATABASE_REF = {
     }
 }
 
-# --- 3. UNIVERSAL DYNAMIC LOGIC (CALIBRATED) ---
-def calculate_precision(cc, bore, stroke, cr, rpm_limit, valve_in, venturi, model_data):
+# --- 3. ENGINE LOGIC (CALIBRATED TO FACTORY) ---
+def calculate_calibrated(cc, bore, stroke, cr, rpm_limit, valve_in, venturi, std_data):
     rpms = np.arange(2000, rpm_limit + 250, 250)
     hps, torques = [], []
     
-    # Mencari nilai BMEP spesifik motor agar HP pas sesuai target
-    # Rumus: BMEP = (HP * 950000) / (CC * RPM * VE)
-    # Untuk Mio Karbu, BMEP efektif berada di kisaran 7.8 - 8.2 Bar
-    t_hp = model_data['target_hp']
-    t_rpm = model_data['peak_hp_rpm']
-    base_bmep = (t_hp * 950000) / (cc * t_rpm * 0.85) 
+    # 1. Konstanta Kalibrasi Spesifik per Model
+    # Dihitung dari: (HP_Target * 950000) / (CC_Std * RPM_Peak * VE_Std)
+    scaling_factor = std_data['target_hp'] / ( (7.2 * cc * std_data['peak_hp_rpm'] * 0.85) / 950000 )
     
     for r in rpms:
-        # Kurva Nafas (Parabolic Decay)
-        # Menghasilkan puncak tepat di peak_hp_rpm pabrikan
-        ve = math.exp(-((r - model_data['peak_hp_rpm']) / 4200)**2)
+        # 2. Kurva Nafas (Drop-off Parabolik)
+        ve = math.exp(-((r - std_data['peak_hp_rpm']) / 3500)**2)
         
-        # Expert Analysis: Gas Speed (Klep vs Bore)
+        # 3. Gas Speed Analysis (Graham Bell)
         ps = (2 * stroke * r) / 60000
         gs = ((bore / valve_in)**2) * ps
-        if gs > 105: ve *= (105 / gs) # Power drop jika klep tercekik
+        if gs > 105: ve *= (105 / gs) # Penurunan tenaga jika klep tercekik
         
-        # Kalkulasi HP & Torque
-        hp = (base_bmep * cc * r * ve) / 950000
-        # Koreksi kecil untuk modifikasi (jika bore dinaikkan, BMEP naik dikit)
-        if bore > model_data['bore']: hp *= (1 + (cr - 9.5)*0.02)
+        # 4. Final Calculation
+        # BMEP Dasar disesuaikan dengan rasio venturi dan kompresi
+        bmep_dynamic = 7.2 * (venturi / std_data['venturi']) * (cr / ( (cc + std_data['v_head'])/std_data['v_head'] ))
         
+        hp = (bmep_dynamic * cc * r * ve * scaling_factor) / 950000
         trq = (hp * 7127) / r if r > 0 else 0
         
         hps.append(round(hp, 2))
@@ -87,25 +83,27 @@ with st.sidebar:
         cc = (math.pi * (in_bore**2) * std['stroke']) / 4000
         cr = (cc + in_vhead) / in_vhead
         ps_max = (2 * std['stroke'] * in_rpm) / 60000
+        gs_max = ((in_bore/in_valve)**2)*ps_max
         
-        rpms, hps, torques = calculate_precision(cc, in_bore, std['stroke'], cr, in_rpm, in_valve, in_venturi, std)
+        rpms, hps, torques = calculate_calibrated(cc, in_bore, std['stroke'], cr, in_rpm, in_valve, in_venturi, std)
         
         idx_hp, idx_trq = np.argmax(hps), np.argmax(torques)
-        run_name = f"{label_run} ({model.split(' ')[0]})"
         
         st.session_state.history.append({
-            "Run": run_name, "CC": cc, "CR": cr, "PS": ps_max, "GS": ((in_bore/in_valve)**2)*ps_max,
-            "HP": hps[idx_hp], "RPM_HP": rpms[idx_hp], "Nm": torques[idx_trq], "RPM_Nm": rpms[idx_trq],
+            "Run": f"{label_run} ({model.split(' ')[0]})", "CC": cc, "CR": cr, 
+            "PS": ps_max, "GS": gs_max,
+            "HP": hps[idx_hp], "RPM_HP": rpms[idx_hp], 
+            "Nm": torques[idx_trq], "RPM_Nm": rpms[idx_trq],
             "rpms": rpms, "hps": hps, "torques": torques
         })
 
 # --- 5. MAIN PANEL ---
-st.title("📟 Hiar Lima Pendawa Tuning (Beta) ")
+st.title("📟 Hiar Lima Pendawa Tuning")
 
 if st.session_state.history:
     latest = st.session_state.history[-1]
     
-    # --- 🛡️ EXPERT SAFETY ANALYSIS (STILL MAINTAINED) ---
+    # --- 🛡️ EXPERT SAFETY ANALYSIS (GRAHAM BELL) ---
     st.subheader(f"🛡️ Safety Analysis: {latest['Run']}")
     c1, c2, c3 = st.columns(3)
     with c1:
@@ -113,9 +111,9 @@ if st.session_state.history:
     with c2:
         st.metric("Static CR", f"{latest['CR']:.2f}:1", "Safe" if latest['CR']<=11.5 else "Racing")
     with c3:
-        st.metric("Gas Speed", f"{latest['GS']:.2f} m/s", "Optimal" if latest['GS']<=100 else "Choked")
+        st.metric("Gas Speed", f"{latest['GS']:.2f} m/s", "Efficient" if latest['GS']<=100 else "Choked")
 
-    # --- TABLE ---
+    # --- PERFORMANCE TABLE ---
     st.write("---")
     df = pd.DataFrame(st.session_state.history)
     st.dataframe(df[["Run", "CC", "CR", "HP", "RPM_HP", "Nm", "RPM_Nm"]], hide_index=True, use_container_width=True)
@@ -123,9 +121,9 @@ if st.session_state.history:
     # --- GRAPH ---
     fig = go.Figure()
     for run in st.session_state.history:
-        fig.add_trace(go.Scatter(x=run['rpms'], y=run['hps'], name=f"{run['Run']} HP"))
-        fig.add_trace(go.Scatter(x=run['rpms'], y=run['torques'], name=f"{run['Run']} Nm", line=dict(dash='dot'), yaxis="y2"))
+        fig.add_trace(go.Scatter(x=run['rpms'], y=run['hps'], name=f"{run['Run']} (HP)"))
+        fig.add_trace(go.Scatter(x=run['rpms'], y=run['torques'], name=f"{run['Run']} (Nm)", line=dict(dash='dot'), yaxis="y2"))
     
-    fig.update_layout(template="plotly_dark", xaxis_title="RPM", yaxis_title="HP", 
+    fig.update_layout(template="plotly_dark", height=500, xaxis_title="RPM", yaxis_title="HP", 
                       yaxis2=dict(overlaying="y", side="right", title="Nm"), legend=dict(orientation="h", y=1.1))
     st.plotly_chart(fig, use_container_width=True)
