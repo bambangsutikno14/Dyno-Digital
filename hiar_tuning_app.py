@@ -10,41 +10,57 @@ st.set_page_config(page_title="Hiar Lima Pendawa Tuning", layout="wide")
 if 'history' not in st.session_state:
     st.session_state.history = []
 
-# --- 2. DATABASE PABRIKAN (Kunci Utama Presisi) ---
+# --- 2. VERIFIED FACTORY DATABASE ---
 DATABASE_REF = {
     "YAMAHA": {
-        "NMAX 155 / Aerox": {"bore": 58.0, "stroke": 58.7, "v_head": 14.6, "valve": 20.5, "venturi": 28, "type": "Matic", "hp_target": 12.0},
-        "Mio Karbu / Soul 115": {"bore": 50.0, "stroke": 57.9, "v_head": 13.7, "valve": 23.0, "venturi": 24, "type": "Matic", "hp_target": 6.54},
+        "Mio Karbu / Soul 115": {
+            "bore": 50.0, "stroke": 57.9, "v_head": 13.7, "valve": 23.0, "venturi": 24, 
+            "target_hp": 6.54, "peak_hp_rpm": 8000, "target_nm": 7.84, "peak_nm_rpm": 7000
+        },
+        "NMAX 155 / Aerox": {
+            "bore": 58.0, "stroke": 58.7, "v_head": 14.6, "valve": 20.5, "venturi": 28, 
+            "target_hp": 15.1, "peak_hp_rpm": 8000, "target_nm": 13.9, "peak_nm_rpm": 6500
+        },
     },
     "HONDA": {
-        "Vario 150 / PCX": {"bore": 57.3, "stroke": 57.9, "v_head": 15.6, "valve": 29.0, "venturi": 26, "type": "Matic", "hp_target": 11.5},
-        "BeAT FI / Scoopy": {"bore": 50.0, "stroke": 55.1, "v_head": 12.7, "valve": 22.0, "venturi": 22, "type": "Matic", "hp_target": 8.5},
+        "Vario 150 / PCX": {
+            "bore": 57.3, "stroke": 57.9, "v_head": 15.6, "valve": 29.0, "venturi": 26, 
+            "target_hp": 13.0, "peak_hp_rpm": 8500, "target_nm": 13.4, "peak_nm_rpm": 5000
+        },
+        "BeAT FI / Scoopy": {
+            "bore": 50.0, "stroke": 55.1, "v_head": 12.7, "valve": 22.0, "venturi": 22, 
+            "target_hp": 8.68, "peak_hp_rpm": 7500, "target_nm": 9.01, "peak_nm_rpm": 6500
+        },
     }
 }
 
-# --- 3. ENGINE LOGIC (Dinamis & Presisi) ---
-def calculate_performance(cc, bore, stroke, cr, rpm_limit, valve_in, venturi, model_name):
+# --- 3. UNIVERSAL DYNAMIC LOGIC (CALIBRATED) ---
+def calculate_precision(cc, bore, stroke, cr, rpm_limit, valve_in, venturi, model_data):
     rpms = np.arange(2000, rpm_limit + 250, 250)
     hps, torques = [], []
     
-    # Penentuan Peak RPM berdasarkan stroke (Overstroke vs Overbore)
-    peak_rpm_hp = 8000 if "Mio" in model_name else 8500
-    
-    # Multiplier BMEP khusus agar Mio Standar Pas 6.54 HP
-    # Kalibrasi: 8.95 adalah angka 'Magic' untuk mencapai target klaim pabrikan
-    base_bmep = 8.95 * (venturi / 24) * (cr / 9.5)
+    # Mencari nilai BMEP spesifik motor agar HP pas sesuai target
+    # Rumus: BMEP = (HP * 950000) / (CC * RPM * VE)
+    # Untuk Mio Karbu, BMEP efektif berada di kisaran 7.8 - 8.2 Bar
+    t_hp = model_data['target_hp']
+    t_rpm = model_data['peak_hp_rpm']
+    base_bmep = (t_hp * 950000) / (cc * t_rpm * 0.85) 
     
     for r in rpms:
-        # Efek Nafas (Drop-off Parabolik)
-        ve = math.exp(-((r - peak_rpm_hp) / 3800)**2)
+        # Kurva Nafas (Parabolic Decay)
+        # Menghasilkan puncak tepat di peak_hp_rpm pabrikan
+        ve = math.exp(-((r - model_data['peak_hp_rpm']) / 4200)**2)
         
-        # Expert Flow Analysis (Gas Speed)
-        piston_speed = (2 * stroke * r) / 60000
-        gas_speed = ((bore / valve_in)**2) * piston_speed
-        if gas_speed > 105: ve *= (105 / gas_speed) # Tercekik jika gas speed > 105m/s
+        # Expert Analysis: Gas Speed (Klep vs Bore)
+        ps = (2 * stroke * r) / 60000
+        gs = ((bore / valve_in)**2) * ps
+        if gs > 105: ve *= (105 / gs) # Power drop jika klep tercekik
         
-        # Horsepower & Torque (Loss CVT Matic 18%)
-        hp = (base_bmep * cc * r * ve * 0.82) / 950000
+        # Kalkulasi HP & Torque
+        hp = (base_bmep * cc * r * ve) / 950000
+        # Koreksi kecil untuk modifikasi (jika bore dinaikkan, BMEP naik dikit)
+        if bore > model_data['bore']: hp *= (1 + (cr - 9.5)*0.02)
+        
         trq = (hp * 7127) / r if r > 0 else 0
         
         hps.append(round(hp, 2))
@@ -62,18 +78,17 @@ with st.sidebar:
     st.write("---")
     label_run = st.text_input("Label Run", value=f"Run {len(st.session_state.history)+1}")
     in_bore = st.number_input(f"Bore ({std['bore']} std)", value=std['bore'], step=0.1)
-    in_stroke = st.number_input(f"Stroke ({std['stroke']} std)", value=std['stroke'], step=0.1)
     in_vhead = st.number_input(f"Vol Head ({std['v_head']} std)", value=std['v_head'], step=0.1)
     in_valve = st.number_input(f"Klep In ({std['valve']} std)", value=std['valve'], step=0.1)
     in_venturi = st.number_input(f"Venturi ({std['venturi']} std)", value=float(std['venturi']), step=1.0)
-    in_rpm = st.slider("RPM Limit", 5000, 15000, 9000)
+    in_rpm = st.slider("RPM Limit", 5000, 15000, int(std['peak_hp_rpm'] + 1500))
 
     if st.button("🚀 ANALYZE"):
-        cc = (math.pi * (in_bore**2) * in_stroke) / 4000
+        cc = (math.pi * (in_bore**2) * std['stroke']) / 4000
         cr = (cc + in_vhead) / in_vhead
-        ps_max = (2 * in_stroke * in_rpm) / 60000
+        ps_max = (2 * std['stroke'] * in_rpm) / 60000
         
-        rpms, hps, torques = calculate_performance(cc, in_bore, in_stroke, cr, in_rpm, in_valve, in_venturi, model)
+        rpms, hps, torques = calculate_precision(cc, in_bore, std['stroke'], cr, in_rpm, in_valve, in_venturi, std)
         
         idx_hp, idx_trq = np.argmax(hps), np.argmax(torques)
         run_name = f"{label_run} ({model.split(' ')[0]})"
@@ -85,54 +100,32 @@ with st.sidebar:
         })
 
 # --- 5. MAIN PANEL ---
-st.title("📟 Hiar Lima Pendawa Tuning")
+st.title("📟 Hiar Lima Pendawa Tuning (Beta) ")
 
 if st.session_state.history:
     latest = st.session_state.history[-1]
     
-    # --- EXPERT SAFETY ANALYSIS (Graham Bell) ---
+    # --- 🛡️ EXPERT SAFETY ANALYSIS (STILL MAINTAINED) ---
     st.subheader(f"🛡️ Safety Analysis: {latest['Run']}")
     c1, c2, c3 = st.columns(3)
-    
     with c1:
-        ps = latest['PS']
-        label = "Safe (Biru)" if ps <= 18 else "Optimal (Hijau)" if ps <= 21 else "Risky (Merah)"
-        st.metric("Piston Speed", f"{ps:.2f} m/s", label)
-        if ps > 21: st.error("⚠️ Resiko patah stang seher!")
-
+        st.metric("Piston Speed", f"{latest['PS']:.2f} m/s", "Safe" if latest['PS']<=18 else "Risky")
     with c2:
-        cr = latest['CR']
-        label = "Safe (Biru)" if cr <= 11.5 else "Optimal (Hijau)" if cr <= 13.0 else "Risky (Merah)"
-        st.metric("Static CR", f"{cr:.2f}:1", label)
-        if cr > 13.0: st.error("⚠️ Rawan Detonasi/Lumer!")
-
+        st.metric("Static CR", f"{latest['CR']:.2f}:1", "Safe" if latest['CR']<=11.5 else "Racing")
     with c3:
-        gs = latest['GS']
-        label = "Efficient (Hijau)" if gs <= 100 else "Choked (Kuning)"
-        st.metric("Gas Speed", f"{gs:.2f} m/s", label)
-        if gs > 100: st.warning("⚠️ Klep terlalu kecil!")
+        st.metric("Gas Speed", f"{latest['GS']:.2f} m/s", "Optimal" if latest['GS']<=100 else "Choked")
 
-    # --- PERFORMANCE TABLE ---
+    # --- TABLE ---
     st.write("---")
     df = pd.DataFrame(st.session_state.history)
-    st.dataframe(
-        df[["Run", "CC", "CR", "HP", "RPM_HP", "Nm", "RPM_Nm"]],
-        column_config={
-            "CC": st.column_config.NumberColumn("cc", format="%.2f"),
-            "CR": st.column_config.NumberColumn("CR", format="%.2f"),
-            "HP": st.column_config.NumberColumn("HP", format="%.2f"),
-            "Nm": st.column_config.NumberColumn("Nm", format="%.2f"),
-        }, hide_index=True, use_container_width=True
-    )
+    st.dataframe(df[["Run", "CC", "CR", "HP", "RPM_HP", "Nm", "RPM_Nm"]], hide_index=True, use_container_width=True)
 
-    # --- DYNAMIC CHART ---
+    # --- GRAPH ---
     fig = go.Figure()
     for run in st.session_state.history:
-        fig.add_trace(go.Scatter(x=run['rpms'], y=run['hps'], name=f"{run['Run']} (HP)"))
-        fig.add_trace(go.Scatter(x=run['rpms'], y=run['torques'], name=f"{run['Run']} (Nm)", line=dict(dash='dot'), yaxis="y2"))
+        fig.add_trace(go.Scatter(x=run['rpms'], y=run['hps'], name=f"{run['Run']} HP"))
+        fig.add_trace(go.Scatter(x=run['rpms'], y=run['torques'], name=f"{run['Run']} Nm", line=dict(dash='dot'), yaxis="y2"))
     
     fig.update_layout(template="plotly_dark", xaxis_title="RPM", yaxis_title="HP", 
-                      yaxis2=dict(overlaying="y", side="right", title="Torque (Nm)"), legend=dict(orientation="h", y=1.1))
+                      yaxis2=dict(overlaying="y", side="right", title="Nm"), legend=dict(orientation="h", y=1.1))
     st.plotly_chart(fig, use_container_width=True)
-else:
-    st.info("Input data di kiri untuk memulai analisis.")
