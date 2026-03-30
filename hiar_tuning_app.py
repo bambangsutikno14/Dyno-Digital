@@ -4,110 +4,137 @@ import math
 import plotly.graph_objects as go
 
 # --- 1. SETTING PAGE ---
-st.set_page_config(page_title="Hiar Lima Pendawa Tuning", layout="wide")
+st.set_page_config(page_title="MotoTuning Master | High-End Dyno", layout="wide")
 
-# --- 2. DATABASE ---
+# --- 2. SESSION STATE (Storage) ---
+if 'history' not in st.session_state:
+    st.session_state.history = []
+
+# --- 3. DATABASE ---
 DATABASE_MATIC = {
     "YAMAHA": {
-        "Mio Karbu / Soul 115": {"bore": 50.0, "stroke": 57.9, "v_head_std": 13.7, "klep_in_std": 23.0},
-        "NMAX 155": {"bore": 58.0, "stroke": 58.7, "v_head_std": 14.6, "klep_in_std": 20.5}
+        "NMAX 155 / Aerox 155": {"bore": 58.0, "stroke": 58.7, "v_head_std": 14.6, "vva": True, "weight": 127},
+        "Mio Karbu / Soul 115": {"bore": 50.0, "stroke": 57.9, "v_head_std": 13.7, "vva": False, "weight": 94},
     },
     "HONDA": {
-        "BeAT Karbu": {"bore": 50.0, "stroke": 55.0, "v_head_std": 13.2, "klep_in_std": 25.5},
-        "Vario 150": {"bore": 57.3, "stroke": 57.9, "v_head_std": 15.6, "klep_in_std": 29.0}
+        "Vario 150 / PCX 150": {"bore": 57.3, "stroke": 57.9, "v_head_std": 15.6, "vva": False, "weight": 112},
+        "BeAT FI / Scoopy": {"bore": 50.0, "stroke": 55.1, "v_head_std": 12.7, "vva": False, "weight": 90},
     }
 }
 
-# --- 3. LOGIKA ENGINE ---
-def hitung_performa_rasional(cc, stroke, rpm, ve=0.82):
-    bmep = 9.2 
-    hp = (bmep * cc * rpm * ve) / 900000
-    mps = (2 * stroke * rpm) / 60000
-    return round(hp, 1), round(mps, 2)
+# --- 4. LOGIKA HIGH-END DYNO ---
+def get_dyno_data(cc, stroke, rpm_limit, vva, temp=30, humidity=50):
+    # SAE J1349 Correction Factor (Simplified)
+    cf = (1.18 * (((temp + 273) / 298) * math.sqrt(298 / (temp + 273)))) - 0.18
+    
+    rpms = np.arange(4000, rpm_limit + 500, 250)
+    hp_list = []
+    torque_list = []
+    
+    for r in rpms:
+        # VE Curve: Bell says VE peaks at 75-80% of max RPM
+        ve_base = 0.92 if vva and r > 6000 else 0.85
+        ve_curve = ve_base * math.cos(math.radians((r - (rpm_limit*0.8)) / (rpm_limit*0.4) * 45))
+        
+        bmep = 9.8 # Bar
+        hp = (bmep * cc * r * ve_curve) / 900000 * cf
+        torque = (hp * 7127) / r # Nm
+        
+        hp_list.append(round(hp, 2))
+        torque_list.append(round(torque, 2))
+        
+    return rpms, hp_list, torque_list
 
-# --- 4. SIDEBAR ---
+# --- 5. SIDEBAR ---
 with st.sidebar:
-    st.header("⚙️ ENGINE CONFIG")
+    st.header("🏁 DYNO CONTROL")
     merk = st.selectbox("Pilih Merk", list(DATABASE_MATIC.keys()))
     motor = st.selectbox("Model", list(DATABASE_MATIC[merk].keys()))
-    data = DATABASE_MATIC[merk][motor]
+    data_std = DATABASE_MATIC[merk][motor]
     
-    st.write("---")
-    bore_in = st.number_input("Diameter Piston (mm)", value=data['bore'] + 3.0, step=0.5)
-    v_head_in = st.number_input("Volume Head (cc)", value=data['v_head_std'], step=0.1)
-    rpm_target = st.slider("Target Peak RPM", 6000, 12000, 9500, 500)
+    with st.expander("🛠️ Engine Specs"):
+        label_run = st.text_input("Run Label", value=f"Run {len(st.session_state.history) + 1}")
+        bore_in = st.number_input("Bore (mm)", value=data_std['bore'], step=0.1)
+        v_head_in = st.number_input("Vol Head (cc)", value=data_std['v_head_std'], step=0.1)
+        rpm_target = st.slider("Limit RPM", 5000, 14000, 9500)
+        bike_weight = st.number_input("Bike Weight (kg)", value=data_std['weight'])
+
+    with st.expander("🌡️ Weather Env (SAE)"):
+        amb_temp = st.slider("Ambient Temp (°C)", 15, 45, 30)
+        amb_hum = st.slider("Humidity (%)", 10, 90, 50)
+
+    c1, c2 = st.columns(2)
+    if c1.button("🚀 RUN DYNO"):
+        cc = (math.pi * (bore_in**2) * data_std['stroke']) / 4000
+        cr = (cc + v_head_in) / v_head_in
+        rpms, hps, torques = get_dyno_data(cc, data_std['stroke'], rpm_target, data_std['vva'], amb_temp, amb_hum)
+        
+        # Acceleration Calc (Simplified 0-201m)
+        avg_hp = max(hps) * 0.85
+        accel_time = math.sqrt((2 * 201 * (bike_weight + 70)) / (avg_hp * 746 / 10)) # Estimasi kasar
+        
+        st.session_state.history.append({
+            "label": label_run, "hp": max(hps), "torque": max(torques), "cc": round(cc,1),
+            "cr": round(cr,1), "rpms": rpms, "hps": hps, "torques": torques, "accel": round(accel_time,2)
+        })
+
+    if c2.button("🗑️ RESET"):
+        st.session_state.history = []
+        st.rerun()
+
+# --- 6. MAIN PANEL ---
+st.title("📟 High-End Digital Dyno Station")
+
+if st.session_state.history:
+    # --- METRICS DASHBOARD ---
+    latest = st.session_state.history[-1]
+    m1, m2, m3, m4 = st.columns(4)
+    m1.metric("Max Power", f"{latest['hp']} HP")
+    m2.metric("Max Torque", f"{latest['torque']} Nm")
+    m3.metric("Compression", f"{latest['cr']}:1")
+    m4.metric("Est. 201m Time", f"{latest['accel']} s")
+
+    # --- PROFESSIONAL DYNO GRAPH ---
+    st.subheader("📊 Multi-Run Power & Torque Overlay")
+    fig = go.Figure()
     
-    btn = st.button("GENERATE DYNO REPORT")
+    colors = ['#ff4b4b', '#00d4ff', '#00ff00', '#ffcc00']
+    for i, run in enumerate(st.session_state.history):
+        color = colors[i % len(colors)]
+        # Power Line (Solid)
+        fig.add_trace(go.Scatter(x=run['rpms'], y=run['hps'], name=f"{run['label']} (HP)", line=dict(color=color, width=4)))
+        # Torque Line (Dashed)
+        fig.add_trace(go.Scatter(x=run['rpms'], y=run['torques'], name=f"{run['label']} (Nm)", line=dict(color=color, width=2, dash='dot'), yaxis="y2"))
 
-# --- 5. MAIN PANEL ---
-st.title("🏁 Digital Dyno Analysis Report")
-
-if btn:
-    # Kalkulasi Dasar
-    cc = (math.pi * (bore_in**2) * data['stroke']) / 4000
-    cr = (cc + v_head_in) / v_head_in
-    hp, mps = hitung_performa_rasional(cc, data['stroke'], rpm_target)
-    
-    # --- SECTION A: METRICS ---
-    c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Kapasitas", f"{round(cc,1)} cc")
-    c2.metric("Rasio Kompresi", f"{round(cr,1)}:1")
-    c3.metric("Max Power", f"{hp} HP")
-    c4.metric("Piston Speed", f"{mps} m/s")
-
-    # --- SECTION B: GRAPH ---
-    st.write("---")
-    rpms = np.arange(4000, rpm_target + 2000, 500)
-    powers = [hitung_performa_rasional(cc, data['stroke'], r, ve=0.85 if r <= rpm_target else 0.70)[0] for r in rpms]
-    fig = go.Figure(go.Scatter(x=rpms, y=powers, fill='tozeroy', name='Power', line=dict(color='#ff4b4b', width=4)))
-    fig.update_layout(template="plotly_dark", title="Power Curve Projection", height=400)
+    fig.update_layout(
+        template="plotly_dark",
+        xaxis_title="Engine RPM",
+        yaxis_title="Horsepower (HP)",
+        yaxis2=dict(title="Torque (Nm)", overlaying="y", side="right"),
+        legend=dict(orientation="h", y=1.1),
+        hovermode="x unified"
+    )
     st.plotly_chart(fig, use_container_width=True)
 
-    # --- SECTION C: TUNER RECOMMENDATION (MAIN PANEL) ---
-    st.subheader("🛠️ Setup Recommendation (Expert Advice)")
-    
-    # Logika Dinamis Berdasarkan Target HP
-    if hp < 10:
-        advice_level = "Daily Refresh (Kirian + Bore Up Tipis)"
-        cam_spec = "Standar / Custom Harian (250°)"
-    elif 10 <= hp <= 15:
-        advice_level = "Touring / Harian Speed"
-        cam_spec = "Noken As Racing Tahap 1 (255°-265°)"
-    else:
-        advice_level = "Racing / FFA Style"
-        cam_spec = "Noken As Racing Tahap 2 (270°++)"
-
-    # Tampilan Panel Penjelasan
-    col_a, col_b = st.columns(2)
-    
-    with col_a:
-        st.info(f"📋 **Kategori Mesin:** {advice_level}")
-        st.markdown(f"""
-        **1. Mekanisme Katup (Valvetrain):**
-        * **Noken As:** Gunakan {cam_spec}.
-        * **Klep:** {'Standar cukup' if cc < 130 else 'Wajib naik ukuran klep (minimal 28/24)'}.
-        * **Per Klep:** Disarankan ganti per klep kompetisi (misal: Swedia/Japan) untuk mencegah floating di {rpm_target} RPM.
-        """)
-        
-    with col_b:
-        # Kalkulasi TB/Karbu Otomatis
-        tb_size = math.sqrt(0.85 * (cc * rpm_target) / 3000)
-        st.warning(f"🔋 **Sektor Udara & Bahan Bakar:**")
-        st.markdown(f"""
-        * **Induksi:** Gunakan Throttle Body/Karbu ukuran **{round(tb_size)} mm**.
-        * **Knalpot:** Header diameter dalam **{round(math.sqrt(cc/20)*10)} mm**.
-        * **BBM:** {'RON 92 (Pertamax)' if cr < 12 else 'RON 98 (Pertamax Turbo)'}.
-        """)
-
-    # Safety Warning
-    if mps > 21:
-        st.error(f"🚨 **WARNING:** Piston speed {mps} m/s sangat berisiko untuk stang seher standar. Wajib gunakan material Forged!")
-
-else:
-    # Tampilan awal saat belum klik RUN
-    st.info("👈 Silakan atur spesifikasi mesin di panel kiri dan klik 'GENERATE DYNO REPORT'")
+    # --- ADVANCED TUNER ANALYSIS ---
     st.write("---")
-    st.write("### Simulasi ini akan memberikan:")
-    st.write("* ✅ Estimasi Horsepower & Torsi")
-    st.write("* ✅ Analisis Rasio Kompresi")
-    st.write("* ✅ Rekomendasi Part (Klep, Noken As, Karburator/TB)")
+    st.subheader("🧠 High-End Tuner Analysis")
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.markdown(f"""
+        ### 📉 Powerband Analysis
+        * **Peak Power:** Tercapai di {run['rpms'][np.argmax(run['hps'])]} RPM.
+        * **Over-rev Capacity:** Tenaga turun sebesar {round(run['hps'][-1]/run['hp']*100,1)}% di limiter.
+        * **Bell's Recommendation:** {'Perlebar porting exhaust' if run['hps'][-1] < run['hp']*0.8 else 'Kapasitas porting sudah optimal'}.
+        """)
+    
+    with col2:
+        st.markdown(f"""
+        ### 🌡️ Thermal & Combustion
+        * **SAE Correction:** Faktor koreksi cuaca saat ini sangat berpengaruh pada performa.
+        * **BMEP Level:** {round((latest['hp']*900000)/(latest['cc']*latest['rpms'][np.argmax(latest['hps'])]*0.85),1)} Bar.
+        * **Status:** {'Extreme Racing (Butuh Fuel High Octane)' if latest['cr'] > 13 else 'Highly Efficient Street'}
+        """)
+else:
+    st.info("👈 Masukkan data Standar, klik RUN, lalu modifikasi spek untuk melihat perbandingan High-End Dyno!")
