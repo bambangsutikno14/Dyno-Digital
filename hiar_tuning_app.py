@@ -2,15 +2,16 @@ import streamlit as st
 import numpy as np
 import math
 import plotly.graph_objects as go
+import pandas as pd
 
 # --- 1. SETTING PAGE ---
-st.set_page_config(page_title="Hiar Lima Pendawa Tuning", layout="wide")
+st.set_config(page_title="Hiar Lima Pendawa Tuning", layout="wide")
 
 # --- 2. SESSION STATE ---
 if 'history' not in st.session_state:
     st.session_state.history = []
 
-# --- 3. DATABASE (Lengkap dengan Berat & Aerodinamika) ---
+# --- 3. DATABASE ---
 DATABASE_MATIC = {
     "YAMAHA": {
         "NMAX 155 / Aerox 155": {"bore": 58.0, "stroke": 58.7, "v_head_std": 14.6, "vva": True, "weight": 127},
@@ -22,11 +23,9 @@ DATABASE_MATIC = {
     }
 }
 
-# --- 4. LOGIKA DRAG SIMULATION (Physics Based) ---
+# --- 4. LOGIKA DRAG SIMULATION ---
 def simulate_drag(hp, weight_total, distance):
-    # Watts conversion (1 HP = 746W)
-    watts = hp * 746 * 0.85 # 0.85 as drivetrain efficiency
-    # t = cuberoot((9/2) * (m/P) * d^2) -> Basic acceleration physics
+    watts = hp * 746 * 0.85 
     time = ( (4.5 * weight_total * (distance**2)) / watts )**(1/3)
     return round(time, 2)
 
@@ -65,15 +64,14 @@ with st.sidebar:
         cr = (cc + v_head_in) / v_head_in
         rpms, hps, torques = get_dyno_data(cc, data_std['stroke'], rpm_target, data_std['vva'])
         
-        # Drag Calculation
         total_w = data_std['weight'] + rider_w
         t100 = simulate_drag(max(hps), total_w, 100)
         t201 = simulate_drag(max(hps), total_w, 201)
         t402 = simulate_drag(max(hps), total_w, 402)
         
         st.session_state.history.append({
-            "Label": label_run, "CC": round(cc,1), "CR": round(cr,1), "Max HP": max(hps),
-            "100m (s)": t100, "201m (s)": t201, "402m (s)": t402,
+            "Label": label_run, "CC": cc, "HP": max(hps),
+            "100m": t100, "201m": t201, "402m": t402,
             "rpms": rpms, "hps": hps, "torques": torques
         })
 
@@ -87,14 +85,26 @@ st.title("📟 Hiar Lima Pendawa: Drag & Dyno Station")
 if st.session_state.history:
     # --- DRAG TIMES TABLE ---
     st.subheader("⏱️ Drag Race Simulation Results")
-    # Tampilkan tabel perbandingan waktu tempuh
-    comparison_df = []
-    for r in st.session_state.history:
-        comparison_df.append({
-            "Run": r['Label'], "CC": r['CC'], "HP": r['Max HP'], 
-            "100m": r['100m (s)'], "201m": r['201m (s)'], "402m": r['402m (s)']
-        })
-    st.table(comparison_df)
+    
+    # Membuat DataFrame untuk tampilan tabel yang rapi
+    df = pd.DataFrame(st.session_state.history)
+    # Memilih kolom yang ingin ditampilkan saja
+    display_df = df[["Label", "CC", "HP", "100m", "201m", "402m"]]
+    
+    # Styling Tabel: Rata Tengah dan 2 Desimal
+    st.dataframe(
+        display_df,
+        column_config={
+            "Label": st.column_config.TextColumn("Run", width="medium"),
+            "CC": st.column_config.NumberColumn("Kapasitas (cc)", format="%.2f"),
+            "HP": st.column_config.NumberColumn("Tenaga (HP)", format="%.2f"),
+            "100m": st.column_config.NumberColumn("100m (s)", format="%.2f"),
+            "201m": st.column_config.NumberColumn("201m (s)", format="%.2f"),
+            "402m": st.column_config.NumberColumn("402m (s)", format="%.2f"),
+        },
+        hide_index=True,
+        use_container_width=True
+    )
 
     # --- DYNO GRAPH ---
     st.subheader("📊 Power & Torque Curve")
@@ -105,7 +115,13 @@ if st.session_state.history:
         fig.add_trace(go.Scatter(x=run['rpms'], y=run['hps'], name=f"{run['Label']} (HP)", line=dict(color=color, width=4)))
         fig.add_trace(go.Scatter(x=run['rpms'], y=run['torques'], name=f"{run['Label']} (Nm)", line=dict(color=color, dash='dot'), yaxis="y2"))
 
-    fig.update_layout(template="plotly_dark", xaxis_title="RPM", yaxis_title="HP", yaxis2=dict(overlaying="y", side="right"), legend=dict(orientation="h", y=1.1))
+    fig.update_layout(
+        template="plotly_dark", 
+        xaxis_title="RPM", 
+        yaxis_title="HP", 
+        yaxis2=dict(title="Torque (Nm)", overlaying="y", side="right"), 
+        legend=dict(orientation="h", y=1.1)
+    )
     st.plotly_chart(fig, use_container_width=True)
 
     # --- EXPERT ADVICE ---
@@ -114,12 +130,12 @@ if st.session_state.history:
     st.subheader("🧠 Tuner's Drag Analysis")
     col1, col2 = st.columns(2)
     with col1:
-        st.info(f"🏁 **Acceleration Note:**\n"
+        st.info(f"🏁 **Acceleration Note:**\n\n"
                 f"Untuk memangkas waktu 402m, Graham Bell menyarankan fokus pada **'Mid-Range Torque'**. "
-                f"Gunakan knalpot dengan diameter leher {round(math.sqrt(latest['CC']/20)*10)}mm.")
+                f"Gunakan knalpot dengan diameter leher **{round(math.sqrt(latest['CC']/20)*10, 1)}mm**.")
     with col2:
-        st.warning(f"⚖️ **Power-to-Weight:**\n"
-                   f"Setiap pengurangan 1kg berat motor/joki setara dengan kenaikan tenaga sekitar 0.15 HP pada jarak 402m.")
+        st.warning(f"⚖️ **Power-to-Weight:**\n\n"
+                   f"Setiap pengurangan 1kg berat motor/joki setara dengan kenaikan tenaga sekitar **0.15 HP** pada jarak 402m.")
 
 else:
     st.info("👈 Masukkan data motor di sidebar dan klik RUN. Bandingkan waktu 100m, 201m, dan 402m antar tiap perubahan!")
