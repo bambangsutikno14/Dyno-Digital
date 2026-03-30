@@ -1,112 +1,125 @@
 import streamlit as st
 import numpy as np
 import math
-import time
 import plotly.graph_objects as go
 
 # --- 1. SETTING PAGE ---
 st.set_page_config(page_title="Hiar Lima Pendawa Tuning", layout="wide")
 
-# --- 2. DATABASE ---
+# --- 2. SESSION STATE ---
+if 'history' not in st.session_state:
+    st.session_state.history = []
+
+# --- 3. DATABASE (Lengkap dengan Berat & Aerodinamika) ---
 DATABASE_MATIC = {
     "YAMAHA": {
-        "NMAX 155 / Aerox 155": {"bore": 58.0, "stroke": 58.7, "v_head_std": 14.6, "vva": True, "weight": 127, "tire_circ": 1.55},
-        "Mio Karbu / Soul 115": {"bore": 50.0, "stroke": 57.9, "v_head_std": 13.7, "vva": False, "weight": 94, "tire_circ": 1.45},
+        "NMAX 155 / Aerox 155": {"bore": 58.0, "stroke": 58.7, "v_head_std": 14.6, "vva": True, "weight": 127},
+        "Mio Karbu / Soul 115": {"bore": 50.0, "stroke": 57.9, "v_head_std": 13.7, "vva": False, "weight": 94},
     },
     "HONDA": {
-        "Vario 150 / PCX 150": {"bore": 57.3, "stroke": 57.9, "v_head_std": 15.6, "vva": False, "weight": 112, "tire_circ": 1.55},
-        "BeAT FI / Scoopy": {"bore": 50.0, "stroke": 55.1, "v_head_std": 12.7, "vva": False, "weight": 90, "tire_circ": 1.40},
+        "Vario 150 / PCX 150": {"bore": 57.3, "stroke": 57.9, "v_head_std": 15.6, "vva": False, "weight": 112},
+        "BeAT FI / Scoopy": {"bore": 50.0, "stroke": 55.1, "v_head_std": 12.7, "vva": False, "weight": 90},
     }
 }
 
-# --- 3. LOGIKA ENGINE ---
-def get_single_point(r, cc, stroke, vva, rpm_limit, cf=1.0):
-    ve = 0.90 if vva and r > 6000 else 0.84
-    ve_curve = ve * math.cos(math.radians((r - (rpm_limit*0.75)) / (rpm_limit*0.45) * 40))
-    hp = (10.2 * cc * r * ve_curve) / 900000 * cf
-    torque = (hp * 7127) / r
-    # Speed estimation (Simulasi gigi 3/4 atau Rasio CVT akhir)
-    speed = (r * 0.015) # Rasio kasar RPM ke KMH
-    return round(hp, 2), round(torque, 2), round(speed, 1)
+# --- 4. LOGIKA DRAG SIMULATION (Physics Based) ---
+def simulate_drag(hp, weight_total, distance):
+    # Watts conversion (1 HP = 746W)
+    watts = hp * 746 * 0.85 # 0.85 as drivetrain efficiency
+    # t = cuberoot((9/2) * (m/P) * d^2) -> Basic acceleration physics
+    time = ( (4.5 * weight_total * (distance**2)) / watts )**(1/3)
+    return round(time, 2)
 
-# --- 4. SIDEBAR ---
+def get_dyno_data(cc, stroke, rpm_limit, vva, temp=25, humidity=0):
+    cf = (1.18 * (((temp + 273) / 298) * math.sqrt(298 / (temp + 273)))) - 0.18
+    cf = 1/cf
+    rpms = np.arange(4000, rpm_limit + 500, 250)
+    hp_list = []
+    torque_list = []
+    for r in rpms:
+        ve = 0.90 if vva and r > 6000 else 0.84
+        ve_curve = ve * math.cos(math.radians((r - (rpm_limit*0.75)) / (rpm_limit*0.45) * 40))
+        hp = (10.2 * cc * r * ve_curve) / 900000 * cf
+        hp_list.append(round(hp, 2))
+        torque_list.append(round((hp * 7127) / r, 2))
+    return rpms, hp_list, torque_list
+
+# --- 5. SIDEBAR ---
 with st.sidebar:
-    st.header("🏁 DYNO CONTROLLER")
+    st.header("🏁 DRAG CONTROL")
     merk = st.selectbox("Pilih Merk", list(DATABASE_MATIC.keys()))
     motor = st.selectbox("Model", list(DATABASE_MATIC[merk].keys()))
     data_std = DATABASE_MATIC[merk][motor]
     
     st.write("---")
+    label_run = st.text_input("Label Run", value=f"Run {len(st.session_state.history) + 1}")
     bore_in = st.number_input("Bore (mm)", value=data_std['bore'], step=0.1)
     v_head_in = st.number_input("Vol Head (cc)", value=data_std['v_head_std'], step=0.1)
-    rpm_limit = st.slider("Limit RPM", 5000, 14000, 10000)
+    rpm_target = st.slider("Limit RPM", 5000, 14000, 9500)
     
-    btn_run = st.button("🚀 START DYNO TEST")
+    st.subheader("👤 Rider Weight")
+    rider_w = st.number_input("Berat Joki (kg)", value=65)
 
-# --- 5. MAIN PANEL (CINEMATIC) ---
-st.title("📟 Hiar Lima Pendawa Tuning")
-
-if btn_run:
-    cc = (math.pi * (bore_in**2) * data_std['stroke']) / 4000
-    
-    # --- TEMPAT GAUGE & GRAFIK (Placeholder) ---
-    col_gauge1, col_gauge2 = st.columns(2)
-    with col_gauge1:
-        rpm_placeholder = st.empty()
-    with col_gauge2:
-        speed_placeholder = st.empty()
-    
-    chart_placeholder = st.empty()
-    
-    # --- ANIMATION LOOP ---
-    list_rpm = []
-    list_hp = []
-    list_torque = []
-    
-    # Simulasi Suara & Gerakan: Start dari 1000 RPM ke Limit
-    for r in range(0, rpm_limit + 250, 250):
-        if r < 1000: # Idle simulation
-            current_hp, current_torque, current_speed = 0, 0, 0
-        else:
-            current_hp, current_torque, current_speed = get_single_point(r, cc, data_std['stroke'], data_std['vva'], rpm_limit)
+    if st.button("🚀 RUN SIMULATION"):
+        cc = (math.pi * (bore_in**2) * data_std['stroke']) / 4000
+        cr = (cc + v_head_in) / v_head_in
+        rpms, hps, torques = get_dyno_data(cc, data_std['stroke'], rpm_target, data_std['vva'])
         
-        list_rpm.append(r)
-        list_hp.append(current_hp)
-        list_torque.append(current_torque)
-
-        # 1. Update Takometer (RPM)
-        fig_rpm = go.Figure(go.Indicator(
-            mode = "gauge+number", value = r, title = {'text': "ENGINE RPM"},
-            gauge = {'axis': {'range': [0, 14000]}, 'bar': {'color': "red" if r > rpm_limit*0.9 else "darkblue"}}
-        ))
-        fig_rpm.update_layout(height=300, margin=dict(l=20, r=20, t=50, b=20))
-        rpm_placeholder.plotly_chart(fig_rpm, use_container_width=True)
-
-        # 2. Update Speedometer (KM/H)
-        fig_spd = go.Figure(go.Indicator(
-            mode = "gauge+number", value = current_speed, title = {'text': "SPEED KM/H"},
-            gauge = {'axis': {'range': [0, 200]}, 'bar': {'color': "green"}}
-        ))
-        fig_spd.update_layout(height=300, margin=dict(l=20, r=20, t=50, b=20))
-        speed_placeholder.plotly_chart(fig_spd, use_container_width=True)
-
-        # 3. Update Live Graph
-        fig_live = go.Figure()
-        fig_live.add_trace(go.Scatter(x=list_rpm, y=list_hp, name="Power (HP)", line=dict(color='red', width=4)))
-        fig_live.add_trace(go.Scatter(x=list_rpm, y=list_torque, name="Torque (Nm)", line=dict(color='cyan', dash='dot'), yaxis="y2"))
+        # Drag Calculation
+        total_w = data_std['weight'] + rider_w
+        t100 = simulate_drag(max(hps), total_w, 100)
+        t201 = simulate_drag(max(hps), total_w, 201)
+        t402 = simulate_drag(max(hps), total_w, 402)
         
-        fig_live.update_layout(
-            template="plotly_dark", height=450,
-            xaxis=dict(range=[0, rpm_limit + 1000], title="RPM"),
-            yaxis=dict(range=[0, max(list_hp)*1.2 if list_hp else 20], title="HP"),
-            yaxis2=dict(range=[0, max(list_torque)*1.2 if list_torque else 20], overlaying="y", side="right", title="Nm"),
-            legend=dict(orientation="h", y=1.1)
-        )
-        chart_placeholder.plotly_chart(fig_live, use_container_width=True)
-        
-        time.sleep(0.01) # Mengatur kecepatan animasi
+        st.session_state.history.append({
+            "Label": label_run, "CC": round(cc,1), "CR": round(cr,1), "Max HP": max(hps),
+            "100m (s)": t100, "201m (s)": t201, "402m (s)": t402,
+            "rpms": rpms, "hps": hps, "torques": torques
+        })
 
-    st.success(f"✅ Dyno Test Complete! Max Power: {max(list_hp)} HP")
+    if st.button("🗑️ RESET ALL"):
+        st.session_state.history = []
+        st.rerun()
+
+# --- 6. MAIN PANEL ---
+st.title("📟 Hiar Lima Pendawa: Drag & Dyno Station")
+
+if st.session_state.history:
+    # --- DRAG TIMES TABLE ---
+    st.subheader("⏱️ Drag Race Simulation Results")
+    # Tampilkan tabel perbandingan waktu tempuh
+    comparison_df = []
+    for r in st.session_state.history:
+        comparison_df.append({
+            "Run": r['Label'], "CC": r['CC'], "HP": r['Max HP'], 
+            "100m": r['100m (s)'], "201m": r['201m (s)'], "402m": r['402m (s)']
+        })
+    st.table(comparison_df)
+
+    # --- DYNO GRAPH ---
+    st.subheader("📊 Power & Torque Curve")
+    fig = go.Figure()
+    colors = ['#ff4b4b', '#00d4ff', '#00ff00', '#ffcc00']
+    for i, run in enumerate(st.session_state.history):
+        color = colors[i % len(colors)]
+        fig.add_trace(go.Scatter(x=run['rpms'], y=run['hps'], name=f"{run['Label']} (HP)", line=dict(color=color, width=4)))
+        fig.add_trace(go.Scatter(x=run['rpms'], y=run['torques'], name=f"{run['Label']} (Nm)", line=dict(color=color, dash='dot'), yaxis="y2"))
+
+    fig.update_layout(template="plotly_dark", xaxis_title="RPM", yaxis_title="HP", yaxis2=dict(overlaying="y", side="right"), legend=dict(orientation="h", y=1.1))
+    st.plotly_chart(fig, use_container_width=True)
+
+    # --- EXPERT ADVICE ---
+    latest = st.session_state.history[-1]
+    st.write("---")
+    st.subheader("🧠 Tuner's Drag Analysis")
+    col1, col2 = st.columns(2)
+    with col1:
+        st.info(f"🏁 **Acceleration Note:**\n"
+                f"Untuk memangkas waktu 402m, Graham Bell menyarankan fokus pada **'Mid-Range Torque'**. "
+                f"Gunakan knalpot dengan diameter leher {round(math.sqrt(latest['CC']/20)*10)}mm.")
+    with col2:
+        st.warning(f"⚖️ **Power-to-Weight:**\n"
+                   f"Setiap pengurangan 1kg berat motor/joki setara dengan kenaikan tenaga sekitar 0.15 HP pada jarak 402m.")
 
 else:
-    st.info("💡 Pastikan 'Beban' sudah siap, lalu klik START untuk running mesin!")
+    st.info("👈 Masukkan data motor di sidebar dan klik RUN. Bandingkan waktu 100m, 201m, dan 402m antar tiap perubahan!")
