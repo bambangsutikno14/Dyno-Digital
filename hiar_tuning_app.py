@@ -2,6 +2,7 @@ import streamlit as st
 from streamlit_echarts import st_echart
 import numpy as np
 import math
+import plotly.graph_objects as go
 
 # --- 1. SETTING PAGE & TEMA ---
 st.set_page_config(page_title="MotoTuning Master | Dyno Simulator", layout="wide", page_icon="🏍️")
@@ -185,7 +186,52 @@ if btn_run:
     # 5.4 BARIS 3: EXPERT CONSULTANT (Peringatan Risiko & Solusi)
     st.write("---")
     st.subheader("🧠 MotoTuning Expert Consultant")
+
+    # --- 6. GRAFIK KURVA PERFORMA (DYNO CHART) ---
+st.write("---")
+st.subheader("📈 Virtual Dyno Graph")
+
+# Generate Data Kurva (Simulasi)
+rpm_range = np.arange(4000, rpm_input + 2000, 500)
+hp_curve = []
+torque_curve = []
+
+for r in rpm_range:
+    # Simulasi VE (Volumetric Efficiency) yang menurun di RPM sangat tinggi
+    ve_factor = math.sin(math.radians((r/rpm_input) * 90)) 
+    curr_mps, curr_hp = estimasi_performa(cc_baru, data_std['stroke'], r)
     
+    real_hp = curr_hp * ve_factor
+    hp_curve.append(real_hp)
+    # Rumus Torsi: (HP * 5252) / RPM (dalam lb-ft, lalu konversi ke Nm)
+    torque_nm = (real_hp * 7127) / r if r > 0 else 0
+    torque_curve.append(round(torque_nm, 2))
+
+# Buat Grafik dengan Plotly
+fig = go.Figure()
+fig.add_trace(go.Scatter(x=rpm_range, y=hp_curve, name='Power (HP)', line=dict(color='#ff4b4b', width=4)))
+fig.add_trace(go.Scatter(x=rpm_range, y=torque_curve, name='Torque (Nm)', line=dict(color='#00d4ff', width=4), yaxis="y2"))
+
+fig.update_layout(
+    title="Simulasi Kurva Tenaga & Torsi",
+    xaxis_title="Engine RPM",
+    yaxis_title="Horsepower (HP)",
+    yaxis2=dict(title="Torque (Nm)", overlaying="y", side="right"),
+    template="plotly_dark",
+    legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+)
+
+st.plotly_chart(fig, use_container_width=True)
+
+# --- 7. MODUL CAMSHAFT (TAMBAHAN EXPERT) ---
+with st.expander("📝 REKOMENDASI DURASI CAMSHAFT"):
+    st.write("Berdasarkan Target RPM dan Kapasitas Mesin:")
+    if rpm_input <= 9500:
+        st.info("**Tipe Cam: Touring / Daily Speed**\n\n* Durasi: 250° - 260°\n* LSA: 102° - 105°\n* Karakter: Torsi padat di putaran bawah-menengah.")
+    elif 9500 < rpm_input <= 11500:
+        st.success("**Tipe Cam: Racing / Drag**\n\n* Durasi: 265° - 275°\n* LSA: 98° - 102°\n* Karakter: Powerband kuat di putaran tengah-atas.")
+    else:
+        st.error("**Tipe Cam: FFA / Extreme Racing**\n\n* Durasi: 280°++\n* LSA: < 98°\n* Karakter: Mesin hanya bertenaga di RPM sangat tinggi, idle tidak stabil.")
     # Logika Peringatan
     if mps > limit_green and not is_forged:
         st.error(f"⚠️ **BAHAYA PISTON SPEED!** MPS mencapai **{mps} m/s**. Piston & Stang seher standar akan patah!")
