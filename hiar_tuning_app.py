@@ -5,7 +5,7 @@ import plotly.graph_objects as go
 import pandas as pd
 
 # --- 1. SETTING PAGE ---
-st.set_config(page_title="Hiar Lima Pendawa Tuning", layout="wide")
+st.set_page_config(page_title="Hiar Lima Pendawa Tuning", layout="wide")
 
 # --- 2. SESSION STATE ---
 if 'history' not in st.session_state:
