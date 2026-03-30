@@ -247,5 +247,11 @@ with st.expander("📝 REKOMENDASI DURASI CAMSHAFT"):
         st.success(f"🚀 **HEAD SPECS UNTUK HP TINGGI:**")
         st.write("Tenaga ini hanya tercapai jika Gas Flow (Aliran Udara) maksimal. Wajib ganti Klep besar (min 28/24) dan porting ulang.")
 
+if btn_run:
+    # Semua kode di bawah if ini HARUS menjorok masuk (1 tab atau 4 spasi)
+    cc_baru, cr_baru = hitung_geometri(bore_input, data_std['stroke'], v_head_input)
+    ...
+    ...
+#else: ini harus sejajar lurus dengan 'if btn_run' di atas
 else:
-    st.info("👈 Selamat Datang! Silakan atur konfigurasi motor di Control Panel (Sidebar) dan klik 'RUN DYNO SIMULATION'.")
+    st.info("👈 Selamat Datang! Silakan atur konfigurasi...")
