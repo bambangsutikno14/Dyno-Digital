@@ -185,57 +185,7 @@ if st.session_state.history:
                       yaxis2=dict(overlaying="y", side="right", title="Torque (Nm)", showgrid=False))
     st.plotly_chart(fig, use_container_width=True)
 
-    # --- 6. ADVANCED DYNAMIC EXPERT ADVICE (v11.1) ---
-    st.divider()
-    st.header("🏁 Axis Expert Physics Analysis & Multi-Solutions")
-    
-    col_a, col_b = st.columns(2)
-
-    with col_a:
-        st.subheader("🔍 Analisa Mekanis")
-        # Analisa Gas Speed
-        if latest['gsin'] > 115:
-            st.error(f"❌ **Choke Flow:** Velocity {latest['gsin']:.2f} m/s (Mach index kritis). Udara menabrak dinding porting, pengisian silinder terhenti di RPM atas.")
-        elif latest['gsin'] > 100:
-            st.warning(f"⚠️ **High Velocity:** Velocity {latest['gsin']:.2f} m/s. Cocok untuk mengejar Peak Power di RPM tinggi, tapi nafas mesin akan cepat habis.")
-        else:
-            st.success(f"✅ **Optimal Flow:** Velocity {latest['gsin']:.2f} m/s. Efisiensi volumetrik sangat baik untuk range power yang lebar.")
-
-        # Analisa CR & Thermal
-        if latest['CR'] > 15.0:
-            st.error(f"❌ **Extreme Thermal:** CR {latest['CR']:.2f}:1. Resiko piston meleleh atau stang seher bengkok sangat tinggi tanpa bahan bakar khusus.")
-        elif latest['CR'] > 13.5:
-            st.warning(f"⚠️ **Racing CR:** CR {latest['CR']:.2f}:1. Wajib menggunakan Avgas atau Pertamax Turbo + Octane Booster.")
-        else:
-            st.info(f"ℹ️ **Safe CR:** CR {latest['CR']:.2f}:1. Masih bisa menggunakan Pertamax Turbo (RON 98) dengan aman.")
-
-    with col_b:
-        st.subheader("🛠️ Opsi Solusi (Pilih sesuai budget/kebutuhan)")
-        
-        solusi_list = []
-        
-        # Skenario 1: Velocity Terlalu Tinggi
-        if latest['gsin'] > 105:
-            solusi_list.append(f"**Opsi A (Klep):** Perbesar klep IN menjadi {round(latest['bore']*0.55, 1)}mm.")
-            solusi_list.append(f"**Opsi B (RPM):** Turunkan limit RPM ke {latest['RPM_HP']+1000} agar tidak terjadi choking.")
-            solusi_list.append(f"**Opsi C (Porting):** Lakukan porting polish tahap 'Stage 3' fokus pada area *valve seat* dan *bowl*.")
-        
-        # Skenario 2: CR Terlalu Tinggi
-        if latest['CR'] > 14.5:
-            solusi_list.append(f"**Opsi D (Dome):** Papas dome piston sebanyak {round(latest['CC']*0.01, 1)}cc.")
-            solusi_list.append(f"**Opsi E (Gasket):** Tambah ketebalan paking blok/head sebesar 0.5mm - 1.0mm.")
-            solusi_list.append(f"**Opsi F (Cam):** Gunakan noken as dengan LSA lebih sempit atau *overlap* tinggi untuk membuang tekanan kompresi statis.")
-
-        # Skenario 3: Kurang Tenaga (Stroke/Bore ratio)
-        if latest['Max_HP'] < std['hp_std'] * 1.5:
-            solusi_list.append(f"**Opsi G (Carburetor):** Reamer venturi atau ganti Throttle Body ke ukuran {round(latest['v_in']*1.15, 1)}mm.")
-            solusi_list.append(f"**Opsi H (Exhaust):** Gunakan leher knalpot tipe *taper* (kerucut) diameter awal {round(latest['v_out']*1.1, 1)}mm.")
-
-        if not solusi_list:
-            st.write("✅ Konfigurasi saat ini sudah sangat seimbang (Harmonized). Fokus pada settingan CO (Injeksi) atau Jetting Karburator.")
-        else:
-            for opt in solusi_list:
-                st.write(opt)# --- 6. AXIS EXPERT (v11.3) ---
+    # --- 6. AXIS EXPERT (v11.3) ---
     st.divider()
     st.header("🏁 Axis Expert Physics Analysis")
 
