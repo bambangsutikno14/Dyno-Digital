@@ -187,7 +187,7 @@ if st.session_state.history:
     solusi = ""
     if latest['gsin'] > 105: solusi = f"Wajib ganti Klep In ke ukuran {round(latest['bore']*0.54, 1)}mm dan porting area seating klep hingga 88% dari diameter payung klep."
     elif latest['dur'] < 240 and latest['RPM_HP'] > 8500: solusi = f"Durasi saat ini membatasi nafas mesin. Gunakan noken as dengan LSA lebih sempit untuk mendongkrak torsi tengah."
-    else: solusi = f"Gunakan knalpot dengan diameter leher {round(math.sqrt(latest['CC']*0.15), 1)}mm untuk menjaga backpressure tetap ideal di kapasitas {latest['CC']}cc."
+    solusi = f"Gunakan knalpot dengan diameter leher {round(math.sqrt(latest['CC']*0.15)*10, 1)}mm ..."
     st.success(f"**3. Solusi:** {solusi}")
 
 st.write("---")
