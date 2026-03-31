@@ -39,7 +39,6 @@ def calculate_axis_v10(cc, bore, stroke, cr, rpm_limit, v_in, v_out, venturi, du
     eff = 0.835 if "Mio" in str(std) or "BeAT" in str(std) else 0.91
     afr_mod = 1.0 - abs(float(afr) - 13.0) * 0.04
     
-    # Physics Barrier: Thermal/Detonation Penalty
     thermal_penalty = 1.0
     if cr > 14.5:
         thermal_penalty = 1.0 - ((cr - 14.5) * 0.15)
@@ -56,7 +55,6 @@ def calculate_axis_v10(cc, bore, stroke, cr, rpm_limit, v_in, v_out, venturi, du
         gs_in = ((float(bore) / float(v_in))**2) * ps_speed
         gs_out = ((float(bore) / float(v_out))**2) * ps_speed
         
-        # Physics Barrier: Choke Flow
         if gs_in > 130.0:
             ve *= (130.0 / gs_in)**2 
         elif gs_in > 110.0:
@@ -83,18 +81,18 @@ with st.sidebar:
     with st.expander("🛠️ Perimeter 1 (Standar)", expanded=True):
         raw_label = st.text_input("Label Run", value=f"Run {len(st.session_state.history)+1}")
         full_label = f"{raw_label} {model_name.split(' ')[0]}" 
-        in_bore = st.number_input(f"Bore (std: {std['bore']})", value=float(std['bore']), step=0.1)
-        in_vhead = st.number_input(f"Vol Head (std: {std['v_head']})", value=float(std['v_head']), step=0.1)
-        in_rpm = st.number_input(f"Limit RPM (std: {std['limit_std']})", value=int(std['limit_std']), step=100)
+        in_bore = st.number_input(f"Bore", value=float(std['bore']), step=0.1)
+        in_vhead = st.number_input(f"Vol Head", value=float(std['v_head']), step=0.1)
+        in_rpm = st.number_input(f"Limit RPM", value=int(std['limit_std']), step=100)
         cc_placeholder = st.empty()
 
     expert_on = st.toggle("🚀 Perimeter 2 (Expert Advice)", value=True)
     if expert_on:
-        with st.expander("🧪 Detail Expert Tuning", expanded=True):
-            in_stroke = st.number_input(f"Stroke (std: {std['stroke']})", value=float(std['stroke']), step=0.1)
-            in_v_in = st.number_input(f"Klep In (std: {std['valve_in']})", value=float(std['valve_in']), step=0.1)
-            in_v_out = st.number_input(f"Klep Out (std: {std['valve_out']})", value=float(std['valve_out']), step=0.1)
-            in_venturi = st.number_input(f"Venturi (std: {float(std['venturi'])})", value=float(std['venturi']), step=0.5)
+        with st.expander("🧪 Detail Tuning", expanded=True):
+            in_stroke = st.number_input(f"Stroke", value=float(std['stroke']), step=0.1)
+            in_v_in = st.number_input(f"Klep In", value=float(std['valve_in']), step=0.1)
+            in_v_out = st.number_input(f"Klep Out", value=float(std['valve_out']), step=0.1)
+            in_venturi = st.number_input(f"Venturi", value=float(std['venturi']), step=0.5)
             in_dur_in = st.slider("Durasi In", 200, 320, 240)
             in_dur_out = st.slider("Durasi Out", 200, 320, 240)
             in_afr = st.slider("Target AFR", 11.5, 14.7, 13.0, step=0.1)
@@ -109,105 +107,65 @@ with st.sidebar:
     in_joki = st.number_input("Berat Joki (kg)", value=60.0, step=1.0)
     run_btn = st.button("🚀 ANALYZE & RUN AXIS DYNO")
 
-# --- 5. MAIN LOGIC & DISPLAY ---
-st.title("📟 Hiar Lima Pendawa Tuning")
-
+# --- 5. MAIN LOGIC ---
 if run_btn:
     cr_calc = (cc_calc + float(in_vhead)) / float(in_vhead)
-    rpms, hps, torques, pspeed, gsin, gsout = calculate_axis_v10(
-        cc_calc, in_bore, in_stroke, cr_calc, in_rpm, 
-        in_v_in, in_v_out, in_venturi, in_dur_in, in_dur_out, in_afr, std
-    )
-    
-    hp_max = float(max(hps))
-    berat_total = float(std['weight_std']) + float(in_joki)
-    pwr = (hp_max / berat_total) * 10.0 
+    rpms, hps, torques, pspeed, gsin, gsout = calculate_axis_v10(cc_calc, in_bore, in_stroke, cr_calc, in_rpm, in_v_in, in_v_out, in_venturi, in_dur_in, in_dur_out, in_afr, std)
+    pwr = (float(max(hps)) / (float(std['weight_std']) + float(in_joki))) * 10.0 
     
     st.session_state.history.append({
-        "Run": full_label, "CC": float(round(cc_calc, 2)), "CR": float(round(cr_calc, 2)), "AFR": float(round(in_afr, 2)),
-        "Max_HP": hp_max, "RPM_HP": int(rpms[np.argmax(hps)]), "Max_Nm": float(max(torques)), "RPM_Nm": int(rpms[np.argmax(torques)]),
-        "T100m": round(6.5 / math.pow(pwr, 0.45), 2),
-        "T201m": round(10.2 / math.pow(pwr, 0.45), 2),
-        "T402m": round(16.5 / math.pow(pwr, 0.45), 2),
-        "T1000m": round(32.8 / math.pow(pwr, 0.45), 2),
-        "gsin": gsin, "gsout": gsout, "pspeed": pspeed,
-        "rpms": rpms, "hps": hps, "torques": torques, "v_in": in_v_in, "v_out": in_v_out, "bore": in_bore, "stroke": in_stroke, "dur": (in_dur_in+in_dur_out)/2, "venturi": in_venturi
+        "Run": full_label, "CC": round(cc_calc, 2), "CR": round(cr_calc, 2), "AFR": in_afr,
+        "Max_HP": float(max(hps)), "RPM_HP": int(rpms[np.argmax(hps)]), "Max_Nm": float(max(torques)), "RPM_Nm": int(rpms[np.argmax(torques)]),
+        "T100m": round(6.5/math.pow(pwr, 0.45), 2), "T201m": round(10.2/math.pow(pwr, 0.45), 2),
+        "T402m": round(16.5/math.pow(pwr, 0.45), 2), "T1000m": round(32.8/math.pow(pwr, 0.45), 2),
+        "gsin": gsin, "gsout": gsout, "pspeed": pspeed, "rpms": rpms, "hps": hps, "torques": torques, "v_in": in_v_in, "bore": in_bore, "v_out": in_v_out, "venturi": in_venturi
     })
 
+# --- 6. DISPLAY & AXIS EXPERT (RE-RESTORED FULL v11.3 LOGIC) ---
 if st.session_state.history:
     latest = st.session_state.history[-1]
+    st.title("📟 Axis Dyno Suite Master v11.5")
     
-    # FLOWBENCH
-    st.header("🌪️ Flowbench & Engine Speed Analysis")
-    m1, m2, m3, m4, m5 = st.columns(5)
-    with m1: st.metric("Flow In (CFM)", f"{round((latest['v_in'] / 25.4)**2 * math.sqrt(28) * 128, 1)}")
-    with m2: st.metric("Flow Out (CFM)", f"{round((latest['v_out'] / 25.4)**2 * math.sqrt(28) * 128, 1)}")
-    with m3: st.metric("Gas Speed In", f"{latest['gsin']:.2f} m/s")
-    with m4: st.metric("Gas Speed Out", f"{latest['gsout']:.2f} m/s")
-    with m5: st.metric("Piston Speed", f"{latest['pspeed']:.2f} m/s")
-
-    # TABLES WITH STYLING & 2 DECIMAL PRECISION
-    def style_abnormal(val, col):
-        if col == 'CR' and val > 14.5: return 'background-color: #8b0000; color: white'
-        if col == 'Velocity' and val > 110.0: return 'background-color: #8b0000; color: white'
-        return ''
-
+    # Graphs & Tables
     df = pd.DataFrame(st.session_state.history)
-    
-    st.write("### 📊 Performance Dyno Results")
-    df_dyno = df[["Run", "CC", "CR", "AFR", "Max_HP", "RPM_HP", "Max_Nm", "RPM_Nm"]].copy()
-    df_dyno['Velocity'] = df['gsin']
-    
-    # Format all numeric columns to 2 decimal places
-    styled_dyno = df_dyno.style.format({
-        "CC": "{:.2f}", "CR": "{:.2f}", "AFR": "{:.2f}", 
-        "Max_HP": "{:.2f}", "Max_Nm": "{:.2f}", "Velocity": "{:.2f}"
-    }).apply(lambda x: [style_abnormal(v, x.name) for v in x], axis=0)
-    
-    st.dataframe(styled_dyno, hide_index=True, use_container_width=True)
-    
-    st.write("### 🏁 Drag Race Simulation (Time Predictions)")
-    st.dataframe(df[["Run", "T100m", "T201m", "T402m", "T1000m"]], hide_index=True, use_container_width=True)
+    st.write("### 📊 Performance Results")
+    st.dataframe(df[["Run", "CC", "CR", "Max_HP", "RPM_HP", "Max_Nm", "RPM_Nm"]], hide_index=True, use_container_width=True)
 
-    # GRAPH
     fig = go.Figure()
     colors = ["#FF0000", "#00FF00", "#0000FF", "#FFFF00"]
     for i, r in enumerate(st.session_state.history):
         c = colors[i % 4]
         fig.add_trace(go.Scatter(x=r['rpms'], y=r['hps'], name=f"{r['Run']} (HP)", line=dict(color=c, width=4)))
         fig.add_trace(go.Scatter(x=r['rpms'], y=r['torques'], line=dict(color=c, dash='dot'), yaxis="y2", name=f"{r['Run']} (Nm)"))
-        fig.add_annotation(x=r['RPM_HP'], y=r['Max_HP'], text=f"HP: {r['Max_HP']:.2f}@{r['RPM_HP']}", showarrow=True, arrowhead=2, bgcolor=c, font=dict(color="black"))
-        fig.add_annotation(x=r['RPM_Nm'], y=r['Max_Nm'], text=f"Nm: {r['Max_Nm']:.2f}@{r['RPM_Nm']}", showarrow=True, yref="y2", arrowhead=2, bgcolor="white", font=dict(color="black"))
-
-    fig.update_layout(template="plotly_dark", height=600, paper_bgcolor="#000", plot_bgcolor="#000",
-                      xaxis=dict(title="RPM", gridcolor="#333", dtick=1000, showgrid=True), 
-                      yaxis=dict(title="Power (HP)", gridcolor="#333", showgrid=True),
-                      yaxis2=dict(overlaying="y", side="right", title="Torque (Nm)", showgrid=False))
+    fig.update_layout(template="plotly_dark", height=500, paper_bgcolor="#000", plot_bgcolor="#000", xaxis=dict(title="RPM", gridcolor="#333"), yaxis=dict(title="HP"), yaxis2=dict(overlaying="y", side="right", title="Nm"))
     st.plotly_chart(fig, use_container_width=True)
 
-    # --- 6. AXIS EXPERT (v11.3) ---
+    # --- FULL LOGIC EXPERT SECTION ---
     st.divider()
     st.header("🏁 Axis Expert Physics Analysis")
 
     # 1. ANALISA PERFORMA
     with st.container():
-        ana_txt = f"Konfigurasi {latest['Run']} memiliki kapasitas {latest['CC']:.2f} cc. "
+        # Pre-formatting variables to avoid f-string display issues
+        v_now = round(latest['gsin'], 2)
+        cr_now = round(latest['CR'], 2)
+        cc_now = round(latest['CC'], 2)
         
-        # Logika Analisa Velocity
-        if latest['gsin'] > 115:
-            ana_status = "❌ **Kritis:** Terjadi *Choke Flow* (Velocity {latest['gsin']:.2f} m/s). Udara menabrak dinding porting, pengisian silinder terhenti di RPM atas."
-        elif latest['gsin'] > 100:
-            ana_status = "⚠️ **Peringatan:** *High Velocity* ({latest['gsin']:.2f} m/s). Karakter mesin 'Peak Power' tinggi namun nafas cepat habis."
+        ana_txt = f"Konfigurasi {latest['Run']} memiliki kapasitas {cc_now} cc. "
+        
+        if v_now > 115:
+            ana_status = f"❌ **Kritis:** Terjadi *Choke Flow* (Velocity {v_now} m/s). Udara menabrak dinding porting, pengisian silinder terhenti di RPM atas."
+        elif v_now > 100:
+            ana_status = f"⚠️ **Peringatan:** *High Velocity* ({v_now} m/s). Karakter mesin 'Peak Power' tinggi namun nafas cepat habis."
         else:
-            ana_status = "✅ **Optimal:** Aliran gas ({latest['gsin']:.2f} m/s) sangat efisien, memberikan rentang tenaga yang luas."
+            ana_status = f"✅ **Optimal:** Aliran gas ({v_now} m/s) sangat efisien, memberikan rentang tenaga yang luas."
 
-        # Logika Analisa CR
-        if latest['CR'] > 15.0:
-            cr_status = f"Serta kondisi termal **Ekstrim** (CR {latest['CR']:.2f}:1) yang beresiko fatal pada piston."
-        elif latest['CR'] > 13.5:
-            cr_status = f"Dengan kompresi **Tinggi** (CR {latest['CR']:.2f}:1), memerlukan manajemen panas dan BBM oktan tinggi."
+        if cr_now > 15.0:
+            cr_status = f"Serta kondisi termal **Ekstrim** (CR {cr_now}:1) yang beresiko fatal pada piston."
+        elif cr_now > 13.5:
+            cr_status = f"Dengan kompresi **Tinggi** (CR {cr_now}:1), memerlukan manajemen panas dan BBM oktan tinggi."
         else:
-            cr_status = f"Dan rasio kompresi ({latest['CR']:.2f}:1) masih dalam batas aman operasional."
+            cr_status = f"Dan rasio kompresi ({cr_now}:1) masih dalam batas aman operasional."
 
         st.info(f"**1. Analisa Performa:** {ana_txt} {ana_status} {cr_status}")
 
@@ -225,29 +183,22 @@ if st.session_state.history:
         st.write("**3. Solusi (Pilihan perbaikan sesuai budget & kebutuhan):**")
         solusi_list = []
         
-        # Opsi Kelistrikan & Bahan Bakar (Umum)
         if latest['CR'] > 14.5:
             solusi_list.append(f"• **Manajemen Kompresi:** Gunakan paking blok/head lebih tebal (0.5-1.0mm) atau papas dome piston {round(latest['CC']*0.01, 1)}cc.")
             solusi_list.append(f"• **Timing Cam:** Gunakan noken as dengan LSA lebih sempit/overlap tinggi untuk membuang tekanan statis berlebih.")
         
-        # Opsi Mekanis Flow
         if latest['gsin'] > 105:
             solusi_list.append(f"• **Upgrade Klep:** Perbesar diameter klep IN ke {round(latest['bore']*0.55, 1)}mm untuk menurunkan hambatan udara.")
             solusi_list.append(f"• **Induksi Udara:** Reamer venturi atau ganti Throttle Body ke ukuran {round(latest['v_in']*1.15, 1)}mm.")
         
-        # Opsi Tambahan jika Power di bawah standar
-        if latest['Max_HP'] < (latest['CC'] * 0.12): # Simulasi mesin lemes
+        if latest['Max_HP'] < (latest['CC'] * 0.12):
             solusi_list.append(f"• **Sistem Gas Buang:** Gunakan knalpot tipe *taper* (kerucut) dengan diameter awal {round(latest['v_out']*1.1, 1)}mm.")
 
         if not solusi_list:
             st.success("✅ **Balanced Engine:** Konfigurasi sudah harmonis. Fokus pada penyempurnaan porting polish tahap akhir (Stage 1) dan settingan AFR.")
         else:
-            # Menampilkan List Solusi dengan Bullet Points
             for s in solusi_list:
                 st.write(s)
 
     # REKOMENDASI FINAL
-    st.info(f"💡 **Rekomendasi Final:** Untuk spek ini, gunakan knalpot dengan diameter leher **{round(math.sqrt(latest['CC']*0.15)*10, 1)}mm** dan target Vol Head **{round(latest['CC']/12.5, 2)}cc** untuk mengejar daya tahan harian yang optimal.")
-
-st.write("---")
-st.error("⚠️ **DISCLAIMER:** Kalkulasi berdasarkan simulasi input data. Hasil nyata bergantung pada efisiensi volumetrik asli di lapangan. GassPoll")
+    st.info(f"💡 **Rekomendasi Final:** Untuk spek ini, gunakan knalpot dengan diameter leher **{rekom_knalpot}mm** dan target Vol Head **{rekom_vhead}cc** untuk mengejar daya tahan harian yang optimal.")
