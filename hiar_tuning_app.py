@@ -5,7 +5,7 @@ import plotly.graph_objects as go
 import pandas as pd
 
 # --- 1. CONFIG & UI ---
-st.set_page_config(page_title="Hiar Lima Pendawa Tuning", layout="wide")
+st.set_page_config(page_title="Hiar Lima Pendawa: Axis v11.0", layout="wide")
 
 st.markdown("""
 <style>
@@ -56,7 +56,7 @@ def calculate_axis_v10(cc, bore, stroke, cr, rpm_limit, v_in, v_out, venturi, du
         gs_in = ((float(bore) / float(v_in))**2) * ps_speed
         gs_out = ((float(bore) / float(v_out))**2) * ps_speed
         
-        # Physics Barrier: Choke Flow (Velocity Drop)
+        # Physics Barrier: Choke Flow
         if gs_in > 130.0:
             ve *= (130.0 / gs_in)**2 
         elif gs_in > 110.0:
@@ -110,7 +110,7 @@ with st.sidebar:
     run_btn = st.button("🚀 ANALYZE & RUN AXIS DYNO")
 
 # --- 5. MAIN LOGIC & DISPLAY ---
-st.title("📟 Hiar Lima Pendawa Tuning")
+st.title("📟 Hiar Lima Pendawa: Axis Dyno Suite Master v11.0")
 
 if run_btn:
     cr_calc = (cc_calc + float(in_vhead)) / float(in_vhead)
@@ -124,8 +124,8 @@ if run_btn:
     pwr = (hp_max / berat_total) * 10.0 
     
     st.session_state.history.append({
-        "Run": full_label, "CC": round(cc_calc, 2), "CR": round(cr_calc, 2), "AFR": in_afr,
-        "Max_HP": hp_max, "RPM_HP": rpms[np.argmax(hps)], "Max_Nm": max(torques), "RPM_Nm": rpms[np.argmax(torques)],
+        "Run": full_label, "CC": float(round(cc_calc, 2)), "CR": float(round(cr_calc, 2)), "AFR": float(round(in_afr, 2)),
+        "Max_HP": hp_max, "RPM_HP": int(rpms[np.argmax(hps)]), "Max_Nm": float(max(torques)), "RPM_Nm": int(rpms[np.argmax(torques)]),
         "T100m": round(6.5 / math.pow(pwr, 0.45), 2),
         "T201m": round(10.2 / math.pow(pwr, 0.45), 2),
         "T402m": round(16.5 / math.pow(pwr, 0.45), 2),
@@ -142,11 +142,11 @@ if st.session_state.history:
     m1, m2, m3, m4, m5 = st.columns(5)
     with m1: st.metric("Flow In (CFM)", f"{round((latest['v_in'] / 25.4)**2 * math.sqrt(28) * 128, 1)}")
     with m2: st.metric("Flow Out (CFM)", f"{round((latest['v_out'] / 25.4)**2 * math.sqrt(28) * 128, 1)}")
-    with m3: st.metric("Gas Speed In", f"{latest['gsin']:.1f} m/s")
-    with m4: st.metric("Gas Speed Out", f"{latest['gsout']:.1f} m/s")
-    with m5: st.metric("Piston Speed", f"{latest['pspeed']:.1f} m/s")
+    with m3: st.metric("Gas Speed In", f"{latest['gsin']:.2f} m/s")
+    with m4: st.metric("Gas Speed Out", f"{latest['gsout']:.2f} m/s")
+    with m5: st.metric("Piston Speed", f"{latest['pspeed']:.2f} m/s")
 
-    # TABLES WITH STYLING
+    # TABLES WITH STYLING & 2 DECIMAL PRECISION
     def style_abnormal(val, col):
         if col == 'CR' and val > 14.5: return 'background-color: #8b0000; color: white'
         if col == 'Velocity' and val > 110.0: return 'background-color: #8b0000; color: white'
@@ -156,8 +156,14 @@ if st.session_state.history:
     
     st.write("### 📊 Performance Dyno Results")
     df_dyno = df[["Run", "CC", "CR", "AFR", "Max_HP", "RPM_HP", "Max_Nm", "RPM_Nm"]].copy()
-    df_dyno['Velocity'] = df['gsin'].round(1)
-    styled_dyno = df_dyno.style.apply(lambda x: [style_abnormal(v, x.name) for v in x], axis=0)
+    df_dyno['Velocity'] = df['gsin']
+    
+    # Format all numeric columns to 2 decimal places
+    styled_dyno = df_dyno.style.format({
+        "CC": "{:.2f}", "CR": "{:.2f}", "AFR": "{:.2f}", 
+        "Max_HP": "{:.2f}", "Max_Nm": "{:.2f}", "Velocity": "{:.2f}"
+    }).apply(lambda x: [style_abnormal(v, x.name) for v in x], axis=0)
+    
     st.dataframe(styled_dyno, hide_index=True, use_container_width=True)
     
     st.write("### 🏁 Drag Race Simulation (Time Predictions)")
@@ -170,8 +176,8 @@ if st.session_state.history:
         c = colors[i % 4]
         fig.add_trace(go.Scatter(x=r['rpms'], y=r['hps'], name=f"{r['Run']} (HP)", line=dict(color=c, width=4)))
         fig.add_trace(go.Scatter(x=r['rpms'], y=r['torques'], line=dict(color=c, dash='dot'), yaxis="y2", name=f"{r['Run']} (Nm)"))
-        fig.add_annotation(x=r['RPM_HP'], y=r['Max_HP'], text=f"HP: {r['Max_HP']}@{r['RPM_HP']}", showarrow=True, arrowhead=2, bgcolor=c, font=dict(color="black"))
-        fig.add_annotation(x=r['RPM_Nm'], y=r['Max_Nm'], text=f"Nm: {r['Max_Nm']}@{r['RPM_Nm']}", showarrow=True, yref="y2", arrowhead=2, bgcolor="white", font=dict(color="black"))
+        fig.add_annotation(x=r['RPM_HP'], y=r['Max_HP'], text=f"HP: {r['Max_HP']:.2f}@{r['RPM_HP']}", showarrow=True, arrowhead=2, bgcolor=c, font=dict(color="black"))
+        fig.add_annotation(x=r['RPM_Nm'], y=r['Max_Nm'], text=f"Nm: {r['Max_Nm']:.2f}@{r['RPM_Nm']}", showarrow=True, yref="y2", arrowhead=2, bgcolor="white", font=dict(color="black"))
 
     fig.update_layout(template="plotly_dark", height=600, paper_bgcolor="#000", plot_bgcolor="#000",
                       xaxis=dict(title="RPM", gridcolor="#333", dtick=1000, showgrid=True), 
@@ -179,27 +185,60 @@ if st.session_state.history:
                       yaxis2=dict(overlaying="y", side="right", title="Torque (Nm)", showgrid=False))
     st.plotly_chart(fig, use_container_width=True)
 
-    # EXPERT ADVICE (DYNAMIC & LIMIT BASED)
+    # --- 6. ADVANCED DYNAMIC EXPERT ADVICE (v11.1) ---
     st.divider()
-    st.header("🏁 Axis Expert Physics Analysis")
+    st.header("🏁 Axis Expert Physics Analysis & Multi-Solutions")
     
-    # Logic Analisa
-    if latest['CR'] > 14.5:
-        st.error(f"⚠️ **DETONATION LIMIT:** CR {latest['CR']}:1 melampaui batas efisiensi termal. HP turun karena detonasi.")
-    elif latest['gsin'] > 110:
-        st.error(f"⚠️ **CHOKE FLOW:** Kecepatan gas {latest['gsin']:.1f} m/s terlalu tinggi. Udara terhambat di intake.")
-    else:
-        st.info(f"**1. Analisa Performa:** Karakter mesin {latest['Run']} cukup ideal dengan kecepatan gas {latest['gsin']:.1f} m/s.")
+    col_a, col_b = st.columns(2)
 
-    # Logic Rekomendasi
-    st.warning(f"**2. Rekomendasi:** Target Vol Head ideal {round(latest['CC']/12.5, 2)}cc. Gunakan knalpot diameter leher {round(math.sqrt(latest['CC']*0.15)*10, 1)}mm.")
+    with col_a:
+        st.subheader("🔍 Analisa Mekanis")
+        # Analisa Gas Speed
+        if latest['gsin'] > 115:
+            st.error(f"❌ **Choke Flow:** Velocity {latest['gsin']:.2f} m/s (Mach index kritis). Udara menabrak dinding porting, pengisian silinder terhenti di RPM atas.")
+        elif latest['gsin'] > 100:
+            st.warning(f"⚠️ **High Velocity:** Velocity {latest['gsin']:.2f} m/s. Cocok untuk mengejar Peak Power di RPM tinggi, tapi nafas mesin akan cepat habis.")
+        else:
+            st.success(f"✅ **Optimal Flow:** Velocity {latest['gsin']:.2f} m/s. Efisiensi volumetrik sangat baik untuk range power yang lebar.")
 
-    # Logic Solusi
-    if latest['gsin'] > 105:
-        solusi = f"Perbesar Klep In ke {round(latest['bore']*0.54, 1)}mm untuk menurunkan velocity."
-    else:
-        solusi = "Fokus pada optimalisasi porting area bowl dan penyelarasan durasi noken as."
-    st.success(f"**3. Solusi:** {solusi}")
+        # Analisa CR & Thermal
+        if latest['CR'] > 15.0:
+            st.error(f"❌ **Extreme Thermal:** CR {latest['CR']:.2f}:1. Resiko piston meleleh atau stang seher bengkok sangat tinggi tanpa bahan bakar khusus.")
+        elif latest['CR'] > 13.5:
+            st.warning(f"⚠️ **Racing CR:** CR {latest['CR']:.2f}:1. Wajib menggunakan Avgas atau Pertamax Turbo + Octane Booster.")
+        else:
+            st.info(f"ℹ️ **Safe CR:** CR {latest['CR']:.2f}:1. Masih bisa menggunakan Pertamax Turbo (RON 98) dengan aman.")
+
+    with col_b:
+        st.subheader("🛠️ Opsi Solusi (Pilih sesuai budget/kebutuhan)")
+        
+        solusi_list = []
+        
+        # Skenario 1: Velocity Terlalu Tinggi
+        if latest['gsin'] > 105:
+            solusi_list.append(f"**Opsi A (Klep):** Perbesar klep IN menjadi {round(latest['bore']*0.55, 1)}mm.")
+            solusi_list.append(f"**Opsi B (RPM):** Turunkan limit RPM ke {latest['RPM_HP']+1000} agar tidak terjadi choking.")
+            solusi_list.append(f"**Opsi C (Porting):** Lakukan porting polish tahap 'Stage 3' fokus pada area *valve seat* dan *bowl*.")
+        
+        # Skenario 2: CR Terlalu Tinggi
+        if latest['CR'] > 14.5:
+            solusi_list.append(f"**Opsi D (Dome):** Papas dome piston sebanyak {round(latest['CC']*0.01, 1)}cc.")
+            solusi_list.append(f"**Opsi E (Gasket):** Tambah ketebalan paking blok/head sebesar 0.5mm - 1.0mm.")
+            solusi_list.append(f"**Opsi F (Cam):** Gunakan noken as dengan LSA lebih sempit atau *overlap* tinggi untuk membuang tekanan kompresi statis.")
+
+        # Skenario 3: Kurang Tenaga (Stroke/Bore ratio)
+        if latest['Max_HP'] < std['hp_std'] * 1.5:
+            solusi_list.append(f"**Opsi G (Carburetor):** Reamer venturi atau ganti Throttle Body ke ukuran {round(latest['v_in']*1.15, 1)}mm.")
+            solusi_list.append(f"**Opsi H (Exhaust):** Gunakan leher knalpot tipe *taper* (kerucut) diameter awal {round(latest['v_out']*1.1, 1)}mm.")
+
+        if not solusi_list:
+            st.write("✅ Konfigurasi saat ini sudah sangat seimbang (Harmonized). Fokus pada settingan CO (Injeksi) atau Jetting Karburator.")
+        else:
+            for opt in solusi_list:
+                st.write(opt)
+
+    # REKOMENDASI FINAL
+    st.info(f"💡 **Rekomendasi Final:** Untuk spek ini, gunakan knalpot dengan diameter leher **{round(math.sqrt(latest['CC']*0.15)*10, 1)}mm** dan target Vol Head **{round(latest['CC']/12.5, 2)}cc** untuk mengejar daya tahan harian yang optimal.")
 
 st.write("---")
 st.error("⚠️ **DISCLAIMER:** Kalkulasi berdasarkan simulasi input data. Hasil nyata bergantung pada efisiensi volumetrik asli di lapangan. GassPoll")
