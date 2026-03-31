@@ -105,20 +105,25 @@ with st.sidebar:
 st.title("📟 Hiar Lima Pendawa Tuning")
 
 if run_btn:
-    cr_calc = (cc_calc + in_vhead) / in_vhead
+    cr_calc = (cc_calc + float(in_vhead)) / float(in_vhead)
     rpms, hps, torques, pspeed, gsin, gsout = calculate_axis_v10(
         cc_calc, in_bore, in_stroke, cr_calc, in_rpm, 
         in_v_in, in_v_out, in_venturi, in_dur_in, in_dur_out, in_afr, std
     )
     
-    # PWR (Power-to-Weight Ratio) - Penting agar waktu realistis
-    pwr = max(hps) / (std['weight_std'] + in_joki)
+    # PERBAIKAN TOTAL FORMULA WAKTU DRAG
+    hp_max = float(max(hps))
+    berat_total = float(std['weight_std']) + float(in_joki)
+    # PWR dikali 10 agar nilai konstanta 6.5 dkk menghasilkan angka detik yang kecil (6-7 detik)
+    pwr = (hp_max / berat_total) * 10.0 
     
     st.session_state.history.append({
         "Run": full_label, "CC": round(cc_calc, 2), "CR": round(cr_calc, 2), "AFR": in_afr,
-        "Max_HP": max(hps), "RPM_HP": rpms[np.argmax(hps)], "Max_Nm": max(torques), "RPM_Nm": rpms[np.argmax(torques)],
-        "T100m": round(6.5/math.pow(pwr, 0.45), 2), "T201m": round(10.2/math.pow(pwr, 0.45), 2),
-        "T402m": round(16.5/math.pow(pwr, 0.45), 2), "T1000m": round(32.8/math.pow(pwr, 0.45), 2),
+        "Max_HP": hp_max, "RPM_HP": rpms[np.argmax(hps)], "Max_Nm": max(torques), "RPM_Nm": rpms[np.argmax(torques)],
+        "T100m": round(6.5 / math.pow(pwr, 0.45), 2),
+        "T201m": round(10.2 / math.pow(pwr, 0.45), 2),
+        "T402m": round(16.5 / math.pow(pwr, 0.45), 2),
+        "T1000m": round(32.8 / math.pow(pwr, 0.45), 2),
         "rpms": rpms, "hps": hps, "torques": torques, "pspeed": pspeed, "gsin": gsin, "gsout": gsout, 
         "v_in": in_v_in, "v_out": in_v_out, "bore": in_bore, "stroke": in_stroke, "dur": (in_dur_in+in_dur_out)/2, "venturi": in_venturi
     })
