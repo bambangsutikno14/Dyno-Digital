@@ -31,7 +31,7 @@ DATABASE_REF = {
 if 'history' not in st.session_state:
     st.session_state.history = []
 
-# --- 3. CORE CALCULATION ---
+# --- 3. CORE CALCULATION (BELL'S CURVE LOGIC) ---
 def calculate_axis_v10(cc, bore, stroke, cr, rpm_limit, v_in, v_out, venturi, dur_in, dur_out, afr, std):
     rpms = np.arange(2000, rpm_limit + 100, 100)
     hps, torques = [], []
@@ -39,21 +39,31 @@ def calculate_axis_v10(cc, bore, stroke, cr, rpm_limit, v_in, v_out, venturi, du
     eff = 0.835 if "Mio" in str(std) or "BeAT" in str(std) else 0.91
     afr_mod = 1.0 - abs(afr - 13.0) * 0.04
     bmep = (std['hp_std'] * 950000) / (cc * adj_peak * eff)
+    
     for r in rpms:
-        ve = math.exp(-((r - adj_peak) / 4500)**2) if r <= adj_peak else math.exp(-((r - adj_peak) / 1600)**2)
+        # Kurva VE: Turun tajam setelah peak (Overrev)
+        if r <= adj_peak:
+            ve = math.exp(-((r - adj_peak) / 4500)**2)
+        else:
+            ve = math.exp(-((r - adj_peak) / 1800)**2) # Penurunan setelah peak power
+            
         ps_speed = (2 * stroke * r) / 60000
         gs_in = ((bore / v_in)**2) * ps_speed
         gs_out = ((bore / v_out)**2) * ps_speed
+        
         if gs_in > 105: ve *= (105 / gs_in)
         if gs_out > 115: ve *= (115 / gs_out)
+        
         hp = (bmep * cc * r * ve * eff * afr_mod) / 950000
         if bore > std['bore']: hp *= (1 + (cr - 9.5) * 0.025)
         if venturi > std['venturi']: hp *= (1 + (venturi - std['venturi']) * 0.012)
+        
         hps.append(round(hp, 2))
         torques.append(round((hp * 7127) / r if r > 0 else 0, 2))
+        
     return rpms, hps, torques, ps_speed, gs_in, gs_out
 
-# --- 4. SIDEBAR (3-PANEL) ---
+# --- 4. SIDEBAR ---
 with st.sidebar:
     st.header("1️⃣ MOTOR CONFIG")
     merk = st.selectbox("Merk", list(DATABASE_REF.keys()))
@@ -80,9 +90,8 @@ with st.sidebar:
             in_dur_in = st.slider("Durasi Noken In", 200, 320, 240)
             in_dur_out = st.slider("Durasi Noken Out", 200, 320, 240)
             in_afr = st.slider("Target AFR Injeksi", 11.5, 14.7, 13.0, step=0.1)
-            in_fratio = st.number_input(f"Final Ratio (std: {std['f_ratio']})", value=float(std['f_ratio']), step=0.01)
     else:
-        in_stroke, in_v_in, in_v_out, in_venturi, in_dur_in, in_dur_out, in_afr, in_fratio = std['stroke'], std['valve_in'], std['valve_out'], std['venturi'], 240, 240, 13.0, std['f_ratio']
+        in_stroke, in_v_in, in_v_out, in_venturi, in_dur_in, in_dur_out, in_afr = std['stroke'], std['valve_in'], std['valve_out'], std['venturi'], 240, 240, 13.0
 
     cc_calc = (0.785 * in_bore * in_bore * in_stroke) / 1000
     cc_placeholder.success(f"CC Motor Real: {cc_calc:.2f} cc")
@@ -125,52 +134,54 @@ if st.session_state.history:
 
     st.write("### 📊 Performance Dyno Results")
     df = pd.DataFrame(st.session_state.history)
-    st.dataframe(df[["Run", "CC", "CR", "AFR", "Max_HP", "RPM_HP", "Max_Nm"]], hide_index=True, use_container_width=True)
+    st.dataframe(df[["Run", "CC", "CR", "AFR", "Max_HP", "RPM_HP", "Max_Nm", "RPM_Nm"]], hide_index=True, use_container_width=True)
     
     st.write("### 🏁 Drag Race Simulation (Time Predictions)")
     st.dataframe(df[["Run", "T100m", "T201m", "T402m", "T1000m"]], hide_index=True, use_container_width=True)
 
+    # GRAPH
     fig = go.Figure()
     colors = ["#FF0000", "#00FF00", "#0000FF", "#FFFF00"]
     for i, r in enumerate(st.session_state.history):
         c = colors[i % 4]
         fig.add_trace(go.Scatter(x=r['rpms'], y=r['hps'], name=f"{r['Run']} (HP)", line=dict(color=c, width=4)))
-        fig.add_trace(go.Scatter(x=r['rpms'], y=r['torques'], line=dict(color=c, dash='dot'), yaxis="y2", showlegend=False))
+        fig.add_trace(go.Scatter(x=r['rpms'], y=r['torques'], line=dict(color=c, dash='dot'), yaxis="y2", name=f"{r['Run']} (Nm)"))
+        
+        # Anotasi Peak Power & Torque
+        fig.add_annotation(x=r['RPM_HP'], y=r['Max_HP'], text=f"Peak: {r['Max_HP']}HP@{r['RPM_HP']}", arrowhead=2, showarrow=True, bgcolor=c, font=dict(color="black"))
+        fig.add_annotation(x=r['RPM_Nm'], y=r['Max_Nm'], text=f"Peak: {r['Max_Nm']}Nm@{r['RPM_Nm']}", arrowhead=2, showarrow=True, yref="y2", bgcolor="white", font=dict(color="black"))
 
-    fig.update_layout(template="plotly_dark", height=550, paper_bgcolor="#000", plot_bgcolor="#000",
-                      xaxis=dict(title="RPM", gridcolor="#333", dtick=1000), 
-                      yaxis=dict(title="Power (HP)", gridcolor="#333"),
+    fig.update_layout(template="plotly_dark", height=600, paper_bgcolor="#000", plot_bgcolor="#000",
+                      xaxis=dict(title="Engine RPM", gridcolor="#333", dtick=1000, showgrid=True), 
+                      yaxis=dict(title="Power (HP)", gridcolor="#333", showgrid=True),
                       yaxis2=dict(overlaying="y", side="right", title="Torque (Nm)", showgrid=False))
     st.plotly_chart(fig, use_container_width=True)
 
-    # --- 9. DYNAMIC EXPERT ADVICE & SOLUTIONS (BELL'S TUNING LOGIC) ---
+    # DYNAMIC EXPERT ADVICE
     st.divider()
     st.header("🏁 Axis Expert Advice & Solutions")
     
-    # Logic 1: Analisa Performa Dinamis
+    # 1. Analisa
     ana_perf = ""
-    if latest['gsin'] > 110: ana_perf = f"Mesin {latest['CC']}cc mengalami 'Choke Flow' parah. Kecepatan gas {latest['gsin']:.1f} m/s melampaui batas efisiensi Graham Bell (105 m/s)."
+    if latest['gsin'] > 110: ana_perf = f"Mesin {latest['Run']} mengalami 'Choke Flow' parah. Kecepatan gas {latest['gsin']:.1f} m/s melampaui batas efisiensi Graham Bell (105 m/s)."
     elif latest['pspeed'] > 21: ana_perf = f"Piston Speed {latest['pspeed']:.1f} m/s sangat kritis. Resiko 'Mechanical Failure' tinggi jika material rod standar."
-    elif latest['dur'] > 280 and latest['CC'] < 150: ana_perf = f"Durasi noken {latest['dur']}° terlalu lebar untuk kapasitas {latest['CC']}cc, menyebabkan 'Low-End Torque' hilang."
     else: ana_perf = f"Kombinasi Bore {latest['bore']}mm dan Stroke {latest['stroke']}mm menghasilkan karakter mesin yang harmonis dengan Gas Speed {latest['gsin']:.1f} m/s."
     st.info(f"**1. Analisa Performa:** {ana_perf}")
 
-    # Logic 2: Rekomendasi Dinamis
+    # 2. Rekomendasi
     rekom = ""
     v_ideal = round(latest['CC'] / (12.5 - 1), 2)
-    if latest['CR'] > 13.5: rekom = f"CR {latest['CR']}:1 terlalu tinggi untuk bahan bakar umum. Turunkan ke 12.5:1 dengan volume head {v_ideal}cc untuk daya tahan long-run."
-    elif latest['venturi'] < (latest['v_in'] * 0.85): rekom = f"Ukuran venturi {latest['venturi']}mm mencekik aliran klep {latest['v_in']}mm. Perbesar venturi untuk nafas atas."
-    elif latest['AFR'] > 13.5: rekom = f"Settingan AFR {latest['AFR']} terlalu kering (Lean). Targetkan 12.8 - 13.0 untuk power maksimal tanpa panas berlebih."
-    else: rekom = f"Optimalkan area 'Squish' dan 'Bowl Area' di belakang klep untuk mempercepat 'Flame Travel' pada CR {latest['CR']}:1."
+    if latest['CR'] > 13.5: rekom = f"CR {latest['CR']}:1 terlalu tinggi untuk harian. Turunkan ke 12.5:1 dengan volume head {v_ideal}cc agar mesin lebih dingin."
+    elif latest['venturi'] < (latest['v_in'] * 0.85): rekom = f"Ukuran venturi {latest['venturi']}mm menghambat klep {latest['v_in']}mm. Perbesar venturi untuk menambah nafas atas."
+    else: rekom = f"Optimalkan area 'Bowl Area' di belakang klep untuk mempercepat 'Flame Travel' pada CR {latest['CR']}:1."
     st.warning(f"**2. Rekomendasi:** {rekom}")
 
-    # Logic 3: Solusi Dinamis
+    # 3. Solusi
     solusi = ""
     if latest['gsin'] > 105: solusi = f"Wajib ganti Klep In ke ukuran {round(latest['bore']*0.54, 1)}mm dan porting area seating klep hingga 88% dari diameter payung klep."
-    elif latest['AFR'] > 13.5: solusi = f"Naikkan durasi injektor (Fuel Map) atau ganti Main Jet lebih besar 2-3 step untuk mendinginkan kubah ruang bakar."
-    elif latest['dur'] < 240 and latest['RPM_HP'] > 9000: solusi = f"Durasi saat ini membatasi nafas mesin. Gunakan noken as dengan LSA lebih sempit untuk mendongkrak torsi tengah."
+    elif latest['dur'] < 240 and latest['RPM_HP'] > 8500: solusi = f"Durasi saat ini membatasi nafas mesin. Gunakan noken as dengan LSA lebih sempit untuk mendongkrak torsi tengah."
     else: solusi = f"Gunakan knalpot dengan diameter leher {round(math.sqrt(latest['CC']*0.15), 1)}mm untuk menjaga backpressure tetap ideal di kapasitas {latest['CC']}cc."
     st.success(f"**3. Solusi:** {solusi}")
 
 st.write("---")
-st.error("⚠️ **DISCLAIMER:** Perhitungan berdasarkan kalkulasi rumus spesifikasi. Hasil bisa berbeda dengan data real. GassPoll")
+st.error("⚠️ **DISCLAIMER:** Kalkulasi berdasarkan prediksi input data. Hasil nyata bergantung pada efisiensi volumetrik asli di lapangan. GassPoll")
