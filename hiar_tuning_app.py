@@ -31,37 +31,49 @@ DATABASE_REF = {
 if 'history' not in st.session_state:
     st.session_state.history = []
 
-# --- 3. CORE CALCULATION (BELL'S CURVE LOGIC) ---
+# --- 3. CORE CALCULATION (PADA BAGIAN INI KITA TAMBAHKAN PHYSICS LIMIT) ---
 def calculate_axis_v10(cc, bore, stroke, cr, rpm_limit, v_in, v_out, venturi, dur_in, dur_out, afr, std):
-    rpms = np.arange(2000, rpm_limit + 100, 100)
+    rpms = np.arange(2000, int(rpm_limit) + 100, 100)
     hps, torques = [], []
-    adj_peak = std['peak_rpm'] + (((dur_in + dur_out)/2 - 240) * 55)
+    adj_peak = float(std['peak_rpm']) + (((float(dur_in) + float(dur_out))/2.0 - 240.0) * 55.0)
     eff = 0.835 if "Mio" in str(std) or "BeAT" in str(std) else 0.91
-    afr_mod = 1.0 - abs(afr - 13.0) * 0.04
-    bmep = (std['hp_std'] * 950000) / (cc * adj_peak * eff)
+    afr_mod = 1.0 - abs(float(afr) - 13.0) * 0.04
+    
+    # [UPDATE: Thermal & Detonation Barrier]
+    # Jika CR > 14.5, efisiensi pembakaran mulai turun karena panas berlebih/detonasi
+    thermal_penalty = 1.0
+    if cr > 14.5:
+        thermal_penalty = 1.0 - ((cr - 14.5) * 0.15) # Penurunan drastis setiap kenaikan 1 point CR
+    if thermal_penalty < 0.2: thermal_penalty = 0.2 # Batas mesin mati/meledak secara teori
+
+    bmep = (float(std['hp_std']) * 950000.0) / (float(cc) * adj_peak * eff)
     
     for r in rpms:
-        # Kurva VE: Turun tajam setelah peak (Overrev)
         if r <= adj_peak:
-            ve = math.exp(-((r - adj_peak) / 4500)**2)
+            ve = math.exp(-((r - adj_peak) / 4500.0)**2)
         else:
-            ve = math.exp(-((r - adj_peak) / 1800)**2) # Penurunan setelah peak power
+            ve = math.exp(-((r - adj_peak) / 1800.0)**2)
             
-        ps_speed = (2 * stroke * r) / 60000
-        gs_in = ((bore / v_in)**2) * ps_speed
-        gs_out = ((bore / v_out)**2) * ps_speed
+        ps_speed = (2.0 * float(stroke) * float(r)) / 60000.0
+        gs_in = ((float(bore) / float(v_in))**2) * ps_speed
         
-        if gs_in > 105: ve *= (105 / gs_in)
-        if gs_out > 115: ve *= (115 / gs_out)
+        # [UPDATE: Choke Flow Barrier]
+        # Graham Bell: Velocity > 130m/s mengakibatkan VE drop drastis (Choke)
+        if gs_in > 130.0:
+            ve *= (130.0 / gs_in)**2 # Drop kuadratik karena turbulensi parah
+        elif gs_in > 110.0:
+            ve *= (110.0 / gs_in) # Penurunan aliran normal
         
-        hp = (bmep * cc * r * ve * eff * afr_mod) / 950000
-        if bore > std['bore']: hp *= (1 + (cr - 9.5) * 0.025)
-        if venturi > std['venturi']: hp *= (1 + (venturi - std['venturi']) * 0.012)
+        hp = (bmep * float(cc) * float(r) * ve * eff * afr_mod * thermal_penalty) / 950000.0
+        
+        # Bore/Venturi mod
+        if float(bore) > float(std['bore']): hp *= (1.0 + (float(cr) - 9.5) * 0.025)
+        if float(venturi) > float(std['venturi']): hp *= (1.0 + (float(venturi) - float(std['venturi'])) * 0.012)
         
         hps.append(round(hp, 2))
-        torques.append(round((hp * 7127) / r if r > 0 else 0, 2))
+        torques.append(round((hp * 7127.0) / r if r > 0 else 0, 2))
         
-    return rpms, hps, torques, ps_speed, gs_in, gs_out
+    return rpms, hps, torques, ps_speed, gs_in
 
 # --- 4. SIDEBAR ---
 with st.sidebar:
