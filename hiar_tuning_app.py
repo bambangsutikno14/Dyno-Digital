@@ -111,7 +111,9 @@ if run_btn:
         in_v_in, in_v_out, in_venturi, in_dur_in, in_dur_out, in_afr, std
     )
     
+    # PWR (Power-to-Weight Ratio) - Penting agar waktu realistis
     pwr = max(hps) / (std['weight_std'] + in_joki)
+    
     st.session_state.history.append({
         "Run": full_label, "CC": round(cc_calc, 2), "CR": round(cr_calc, 2), "AFR": in_afr,
         "Max_HP": max(hps), "RPM_HP": rpms[np.argmax(hps)], "Max_Nm": max(torques), "RPM_Nm": rpms[np.argmax(torques)],
