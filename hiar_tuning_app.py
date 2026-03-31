@@ -5,7 +5,7 @@ import plotly.graph_objects as go
 import pandas as pd
 
 # --- 1. CONFIG & UI ---
-st.set_page_config(page_title="Hiar Lima Pendawa: Axis v11.0", layout="wide")
+st.set_page_config(page_title="Hiar Lima Pendawa Tuning", layout="wide")
 
 st.markdown("""
 <style>
@@ -110,7 +110,7 @@ with st.sidebar:
     run_btn = st.button("🚀 ANALYZE & RUN AXIS DYNO")
 
 # --- 5. MAIN LOGIC & DISPLAY ---
-st.title("📟 Hiar Lima Pendawa: Axis Dyno Suite Master v11.0")
+st.title("📟 Hiar Lima Pendawa Tuning")
 
 if run_btn:
     cr_calc = (cc_calc + float(in_vhead)) / float(in_vhead)
