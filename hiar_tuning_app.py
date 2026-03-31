@@ -235,7 +235,66 @@ if st.session_state.history:
             st.write("✅ Konfigurasi saat ini sudah sangat seimbang (Harmonized). Fokus pada settingan CO (Injeksi) atau Jetting Karburator.")
         else:
             for opt in solusi_list:
-                st.write(opt)
+                st.write(opt)# --- 6. AXIS EXPERT (v11.3) ---
+    st.divider()
+    st.header("🏁 Axis Expert Physics Analysis")
+
+    # 1. ANALISA PERFORMA
+    with st.container():
+        ana_txt = f"Konfigurasi {latest['Run']} memiliki kapasitas {latest['CC']:.2f} cc. "
+        
+        # Logika Analisa Velocity
+        if latest['gsin'] > 115:
+            ana_status = "❌ **Kritis:** Terjadi *Choke Flow* (Velocity {latest['gsin']:.2f} m/s). Udara menabrak dinding porting, pengisian silinder terhenti di RPM atas."
+        elif latest['gsin'] > 100:
+            ana_status = "⚠️ **Peringatan:** *High Velocity* ({latest['gsin']:.2f} m/s). Karakter mesin 'Peak Power' tinggi namun nafas cepat habis."
+        else:
+            ana_status = "✅ **Optimal:** Aliran gas ({latest['gsin']:.2f} m/s) sangat efisien, memberikan rentang tenaga yang luas."
+
+        # Logika Analisa CR
+        if latest['CR'] > 15.0:
+            cr_status = f"Serta kondisi termal **Ekstrim** (CR {latest['CR']:.2f}:1) yang beresiko fatal pada piston."
+        elif latest['CR'] > 13.5:
+            cr_status = f"Dengan kompresi **Tinggi** (CR {latest['CR']:.2f}:1), memerlukan manajemen panas dan BBM oktan tinggi."
+        else:
+            cr_status = f"Dan rasio kompresi ({latest['CR']:.2f}:1) masih dalam batas aman operasional."
+
+        st.info(f"**1. Analisa Performa:** {ana_txt} {ana_status} {cr_status}")
+
+    # 2. REKOMENDASI
+    with st.container():
+        rekom_knalpot = round(math.sqrt(latest['CC']*0.15)*10, 1)
+        rekom_vhead = round(latest['CC']/12.5, 2)
+        rekom_txt = f"Untuk durabilitas optimal, gunakan leher knalpot diameter **{rekom_knalpot} mm** dan target volume *Head* di angka **{rekom_vhead} cc**."
+        if latest['CR'] > 13.5:
+            rekom_txt += " Gunakan bahan bakar minimal RON 98 atau Avgas."
+        st.warning(f"**2. Rekomendasi:** {rekom_txt}")
+
+    # 3. SOLUSI (LIST MULTI-OPSI)
+    with st.container():
+        st.write("**3. Solusi (Pilihan perbaikan sesuai budget & kebutuhan):**")
+        solusi_list = []
+        
+        # Opsi Kelistrikan & Bahan Bakar (Umum)
+        if latest['CR'] > 14.5:
+            solusi_list.append(f"• **Manajemen Kompresi:** Gunakan paking blok/head lebih tebal (0.5-1.0mm) atau papas dome piston {round(latest['CC']*0.01, 1)}cc.")
+            solusi_list.append(f"• **Timing Cam:** Gunakan noken as dengan LSA lebih sempit/overlap tinggi untuk membuang tekanan statis berlebih.")
+        
+        # Opsi Mekanis Flow
+        if latest['gsin'] > 105:
+            solusi_list.append(f"• **Upgrade Klep:** Perbesar diameter klep IN ke {round(latest['bore']*0.55, 1)}mm untuk menurunkan hambatan udara.")
+            solusi_list.append(f"• **Induksi Udara:** Reamer venturi atau ganti Throttle Body ke ukuran {round(latest['v_in']*1.15, 1)}mm.")
+        
+        # Opsi Tambahan jika Power di bawah standar
+        if latest['Max_HP'] < (latest['CC'] * 0.12): # Simulasi mesin lemes
+            solusi_list.append(f"• **Sistem Gas Buang:** Gunakan knalpot tipe *taper* (kerucut) dengan diameter awal {round(latest['v_out']*1.1, 1)}mm.")
+
+        if not solusi_list:
+            st.success("✅ **Balanced Engine:** Konfigurasi sudah harmonis. Fokus pada penyempurnaan porting polish tahap akhir (Stage 1) dan settingan AFR.")
+        else:
+            # Menampilkan List Solusi dengan Bullet Points
+            for s in solusi_list:
+                st.write(s)
 
     # REKOMENDASI FINAL
     st.info(f"💡 **Rekomendasi Final:** Untuk spek ini, gunakan knalpot dengan diameter leher **{round(math.sqrt(latest['CC']*0.15)*10, 1)}mm** dan target Vol Head **{round(latest['CC']/12.5, 2)}cc** untuk mengejar daya tahan harian yang optimal.")
