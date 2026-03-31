@@ -202,4 +202,4 @@ if st.session_state.history:
     st.success(f"**3. Solusi:** {solusi}")
 
 st.write("---")
-st.error("⚠️ **DISCLAIMER:** Berdasarkan 4-Stroke Performance Tuning. Batas fisik diterapkan pada CR > 14.5 dan Velocity > 110 m/s.")
+st.error("⚠️ **DISCLAIMER:** Kalkulasi berdasarkan simulasi input data. Hasil nyata bergantung pada efisiensi volumetrik asli di lapangan. GassPoll")
