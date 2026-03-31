@@ -5,7 +5,7 @@ import plotly.graph_objects as go
 import pandas as pd
 
 # --- 1. SETTING PAGE ---
-st.set_page_config(page_title="Hiar Lima Pendawa: Ultimate Sync v10.0", layout="wide")
+st.set_page_config(page_title="Hiar Lima Pendawa Tuning", layout="wide")
 
 st.markdown("""
 <style>
@@ -123,7 +123,7 @@ with st.sidebar:
         st.metric("Flow Out", f"{cfm_out} CFM")
 
 # --- 6. MAIN DISPLAY (AXIS STYLE) ---
-st.title("📟 Hiar Lima Pendawa: Ultimate Axis Suite")
+st.title("📟 Hiar Lima Pendawa Tuning")
 
 if st.session_state.history:
     latest = st.session_state.history[-1]
