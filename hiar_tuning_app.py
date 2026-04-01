@@ -104,7 +104,7 @@ with st.sidebar:
     run_btn = st.button("🚀 ANALYZE REAL WHP")
 
 # --- 4. MAIN VIEW ---
-st.title("📟 Axis Dyno Pro v12.0")
+st.title("📟 Hiar Lima Pendawa Tuning")
 st.caption("Advanced Internal Combustion Engine Simulator (WHp Accurate)")
 
 if run_btn:
