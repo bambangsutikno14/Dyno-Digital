@@ -31,24 +31,25 @@ DATABASE_REF = {
 if 'history' not in st.session_state:
     st.session_state.history = []
 
-# --- 3. CORE CALCULATION (V12) ---
-def calculate_axis_v12(cc, bore, stroke, cr, rpm_limit, v_in, n_v_in, v_out, n_v_out, v_lift, venturi, dur_in, dur_out, afr, material, std):
+# --- 3. CORE CALCULATION (V13 - FULL ENGINE LOGIC) ---
+def calculate_axis_v13(cc, bore, stroke, cr, rpm_limit, v_in, n_v_in, v_out, n_v_out, v_lift, venturi, dur_in, dur_out, afr, material, d_type, std):
     rpms = np.arange(2000, int(rpm_limit) + 100, 100)
     hps, torques = [], []
     adj_peak = float(std['peak_rpm']) + (((float(dur_in) + float(dur_out))/2.0 - 240.0) * 55.0)
     
-    base_eff = 0.92
+    # Base Efficiency & Drivetrain Loss
+    d_loss = 0.82 if d_type == "CVT" else 0.93 # Loss Power 
     friction_mod = 1.05 if material == "Forged" else 1.0
     afr_mod = 1.0 - abs(float(afr) - 12.8) * 0.05
     
     thermal_penalty = 1.0
     if cr > 14.5: thermal_penalty = 1.0 - ((cr - 14.5) * 0.15)
     
-    # Diameter Efektif In & Out (Multi-valve Logic)
+    # Effective Valve Area
     eff_v_in = math.sqrt(n_v_in * (v_in**2))
     eff_v_out = math.sqrt(n_v_out * (v_out**2))
     
-    bmep_std = (float(std['hp_std']) * 950000.0) / (float(std['bore']**2 * 0.785 * std['stroke']/1000) * float(std['peak_rpm']) * 0.85)
+    bmep_base = (float(std['hp_std']) * 950000.0) / (float(std['bore']**2 * 0.785 * std['stroke']/1000) * float(std['peak_rpm']) * 0.85)
 
     for r in rpms:
         ve = math.exp(-((r - adj_peak) / 4000.0)**2) if r <= adj_peak else math.exp(-((r - adj_peak) / 2200.0)**2)
@@ -57,16 +58,14 @@ def calculate_axis_v12(cc, bore, stroke, cr, rpm_limit, v_in, n_v_in, v_out, n_v
         gs_in = ((float(bore) / eff_v_in)**2) * ps_speed
         gs_out = ((float(bore) / eff_v_out)**2) * ps_speed 
         
-        # Piston Speed Penalty
-        ps_limit = 26.5 if material == "Forged" else 21.0
-        if ps_speed > ps_limit: ve *= (ps_limit / ps_speed)**1.8
-
-        # Choke Flow Penalty (In & Out)
+        # Physics Barrier
+        ps_limit = 27.0 if material == "Forged" else 21.0
+        if ps_speed > ps_limit: ve *= (ps_limit / ps_speed)**2
         if gs_in > 115.0: ve *= (115.0 / gs_in)**2
-        if gs_out > 110.0: ve *= (110.0 / gs_out)**1.5 # Out lebih sensitif terhadap backpressure
         
-        hp = (bmep_std * float(cc) * float(r) * ve * base_eff * afr_mod * thermal_penalty * friction_mod) / 900000.0
-        hp *= (1.0 + (v_lift - 7.0) * 0.02) if v_lift > 7.0 else 1.0
+        # HP Calculation
+        hp = (bmep_base * float(cc) * float(r) * ve * d_loss * afr_mod * thermal_penalty * friction_mod) / 920000.0
+        hp *= (1.0 + (v_lift - 7.0) * 0.025) if v_lift > 7.0 else 1.0
         if float(venturi) > float(std['venturi']): hp *= (1.0 + (float(venturi) - float(std['venturi'])) * 0.015)
         
         hps.append(round(hp, 2))
@@ -87,7 +86,7 @@ with st.sidebar:
         raw_label = st.text_input("Label Run", value=f"Run {len(st.session_state.history)+1}")
         full_label = f"{raw_label} {model_name.split(' ')[0]}" 
         in_bore = st.number_input(f"Bore (std: {std['bore']})", value=float(std['bore']), step=0.1)
-        in_stroke = st.number_input(f"Stroke (std: {std['stroke']})", value=float(std['stroke']), step=0.1) # Stroke pindah ke sini
+        in_stroke = st.number_input(f"Stroke (std: {std['stroke']})", value=float(std['stroke']), step=0.1)
         in_vhead = st.number_input(f"Vol Head (std: {std['v_head']})", value=float(std['v_head']), step=0.1)
         in_rpm = st.number_input(f"Limit RPM (std: {std['limit_std']})", value=int(std['limit_std']), step=100)
         cc_placeholder = st.empty()
@@ -95,22 +94,19 @@ with st.sidebar:
     expert_on = st.toggle("🚀 Perimeter 2 (Expert Advice)", value=True)
     if expert_on:
         with st.expander("🧪 Detail Expert Tuning", expanded=True):
-            # Bagian Klep In
-            in_v_in = st.number_input(f"Ukuran Klep In (std: {std['valve_in']})", value=float(std['valve_in']), step=0.1)
+            in_v_in = st.number_input(f"Klep In (std: {std['valve_in']})", value=float(std['valve_in']), step=0.1)
             in_n_v_in = st.selectbox("Jumlah Klep In", [1, 2], index=1 if std['valves']==4 else 0)
-            
-            # Bagian Klep Out
-            in_v_out = st.number_input(f"Ukuran Klep Out (std: {std['valve_out']})", value=float(std['valve_out']), step=0.1)
+            in_v_out = st.number_input(f"Klep Out (std: {std['valve_out']})", value=float(std['valve_out']), step=0.1)
             in_n_v_out = st.selectbox("Jumlah Klep Out", [1, 2], index=1 if std['valves']==4 else 0)
-            
             in_v_lift = st.number_input("Valve Lift (mm)", value=8.5, step=0.1)
             in_venturi = st.number_input(f"Venturi (std: {float(std['venturi'])})", value=float(std['venturi']), step=0.5)
-            in_dur_in = st.slider("Durasi In", 200, 320, 240)
-            in_dur_out = st.slider("Durasi Out", 200, 320, 240)
-            in_afr = st.slider("Target AFR", 11.5, 14.7, 13.0, step=0.1)
+            in_dur_in = st.slider("Durasi In", 200, 320, 275)
+            in_dur_out = st.slider("Durasi Out", 200, 320, 270)
+            in_afr = st.slider("Target AFR", 11.5, 14.7, 12.8, step=0.1)
             in_material = st.selectbox("Material Piston", ["Casting", "Forged"])
+            in_d_type = st.selectbox("Jenis Penggerak", ["CVT", "Rantai"])
     else:
-        in_v_in, in_n_v_in, in_v_out, in_n_v_out, in_v_lift, in_venturi, in_dur_in, in_dur_out, in_afr, in_material = std['valve_in'], (2 if std['valves']==4 else 1), std['valve_out'], (2 if std['valves']==4 else 1), 7.0, std['venturi'], 240, 240, 13.0, "Casting"
+        in_v_in, in_n_v_in, in_v_out, in_n_v_out, in_v_lift, in_venturi, in_dur_in, in_dur_out, in_afr, in_material, in_d_type = std['valve_in'], (2 if std['valves']==4 else 1), std['valve_out'], (2 if std['valves']==4 else 1), 7.0, std['venturi'], 240, 240, 13.0, "Casting", "CVT"
 
     cc_calc = (0.785398 * float(in_bore)**2 * float(in_stroke)) / 1000.0
     cc_placeholder.success(f"CC Motor Real: {cc_calc:.2f} cc")
@@ -125,9 +121,9 @@ st.title("📟 Hiar Lima Pendawa Tuning")
 
 if run_btn:
     cr_calc = (cc_calc + float(in_vhead)) / float(in_vhead)
-    rpms, hps, torques, pspeed, gsin, gsout = calculate_axis_v12(
+    rpms, hps, torques, pspeed, gsin, gsout = calculate_axis_v13(
         cc_calc, in_bore, in_stroke, cr_calc, in_rpm, 
-        in_v_in, in_n_v_in, in_v_out, in_n_v_out, in_v_lift, in_venturi, in_dur_in, in_dur_out, in_afr, in_material, std
+        in_v_in, in_n_v_in, in_v_out, in_n_v_out, in_v_lift, in_venturi, in_dur_in, in_dur_out, in_afr, in_material, in_d_type, std
     )
     
     hp_max = float(max(hps))
@@ -146,7 +142,6 @@ if run_btn:
 if st.session_state.history:
     latest = st.session_state.history[-1]
     
-    # FLOWBENCH DISPLAY
     st.header("🌪️ Flowbench & Engine Speed Analysis")
     m1, m2, m3, m4, m5 = st.columns(5)
     with m1: st.metric("Flow In (CFM)", f"{round((latest['v_in'] / 25.4)**2 * math.sqrt(28) * 128, 1)}")
@@ -155,7 +150,6 @@ if st.session_state.history:
     with m4: st.metric("Gas Speed Out", f"{latest['gsout']:.2f} m/s")
     with m5: st.metric("Piston Speed", f"{latest['pspeed']:.2f} m/s")
 
-    # TABLES
     df = pd.DataFrame(st.session_state.history)
     st.write("### 📊 Performance Dyno Results")
     df_dyno = df[["Run", "CC", "CR", "AFR", "Max_HP", "RPM_HP", "Max_Nm", "RPM_Nm"]].copy()
@@ -166,7 +160,6 @@ if st.session_state.history:
     st.write("### 🏁 Drag Race Simulation (Time Predictions)")
     st.dataframe(df[["Run", "T100m", "T201m", "T402m", "T1000m"]], hide_index=True, use_container_width=True)
 
-    # GRAPH
     fig = go.Figure()
     colors = ["#FF0000", "#00FF00", "#0000FF", "#FFFF00"]
     for i, r in enumerate(st.session_state.history):
@@ -179,6 +172,20 @@ if st.session_state.history:
                       yaxis=dict(title="Power (HP)", gridcolor="#333"),
                       yaxis2=dict(overlaying="y", side="right", title="Torque (Nm)"))
     st.plotly_chart(fig, use_container_width=True)
+
+    # EXPERT PHYSICS ADVICE (KEMBALI DIMUNCULKAN)
+    st.divider()
+    st.header("🏁 Axis Expert Physics Analysis")
+    if latest['CR'] > 14.5:
+        st.error(f"⚠️ **DETONATION LIMIT:** CR {latest['CR']:.2f}:1 melampaui batas efisiensi termal. HP turun karena detonasi.")
+    elif latest['gsin'] > 110:
+        st.error(f"⚠️ **CHOKE FLOW:** Kecepatan gas {latest['gsin']:.2f} m/s terlalu tinggi. Udara terhambat di intake.")
+    else:
+        st.info(f"**1. Analisa Performa:** Karakter mesin {latest['Run']} cukup ideal dengan kecepatan gas {latest['gsin']:.2f} m/s.")
+
+    st.warning(f"**2. Rekomendasi:** Target Vol Head ideal {round(latest['CC']/12.5, 2)}cc. Gunakan knalpot diameter leher {round(math.sqrt(latest['CC']*0.15)*10, 1)}mm.")
+    solusi = f"Perbesar Klep In ke {round(latest['bore']*0.54, 1)}mm untuk menurunkan velocity." if latest['gsin'] > 105 else "Fokus pada optimalisasi porting area bowl dan penyelarasan durasi noken as."
+    st.success(f"**3. Solusi:** {solusi}")
 
 st.write("---")
 st.error("⚠️ **DISCLAIMER:** Batas fisik diterapkan pada CR > 14.5 dan Velocity > 110 m/s.")
