@@ -5,7 +5,7 @@ import plotly.graph_objects as go
 import pandas as pd
 
 # --- 1. CONFIG & UI ---
-st.set_page_config(Hiar Lima Pendawa Tuning", layout="wide")
+st.set_page_config("Hiar Lima Pendawa Tuning", layout="wide")
 
 st.markdown("""
 <style>
