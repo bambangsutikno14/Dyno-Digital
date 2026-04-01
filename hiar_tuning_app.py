@@ -180,5 +180,22 @@ if st.session_state.history:
                       yaxis2=dict(overlaying="y", side="right", title="Torque (Nm)"))
     st.plotly_chart(fig, use_container_width=True)
 
+st.divider()
+    st.header("🏁 Axis Expert Physics Analysis")
+    c1, c2 = st.columns(2)
+    with c1:
+        st.subheader("🧐 Analisa Kondisi Mesin")
+        if latest['gsin'] > 115: st.error(f"❌ **CHOKE FLOW:** Intake Velocity {latest['gsin']:.1f} m/s terlalu tinggi.")
+        elif latest['gsin'] < 90: st.warning(f"⚠️ **LOW VELOCITY:** {latest['gsin']:.1f} m/s. Porting terlalu besar.")
+        else: st.success(f"✅ **IDEAL FLOW:** Velocity {latest['gsin']:.1f} m/s sangat optimal.")
+        if latest['CR'] > 14.5: st.error(f"❌ **DETONATION:** CR {latest['CR']:.1f}:1 Sangat Berbahaya!")
+            
+    with c2:
+        st.subheader("💡 Saran Ahli & Solusi")
+        st.info(f"📍 **Target Vol Head:** {latest['CC'] / 12.5:.2f}cc.")
+        st.warning(f"📍 **Knalpot:** Header {round(math.sqrt(latest['CC'] * 0.16) * 10, 1)}mm.")
+        solusi = f"Perbesar Klep In ke {round(latest['bore']*0.52, 1)}mm." if latest['gsin'] > 105 else "Optimalkan profil Camshaft."
+        st.success(f"📍 **Solusi Utama:** {solusi}")
+
 st.write("---")
 st.error("⚠️ **DISCLAIMER:** Batas fisik diterapkan pada CR > 14.5 dan Velocity > 110 m/s.")
