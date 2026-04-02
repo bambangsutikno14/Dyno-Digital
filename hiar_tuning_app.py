@@ -134,7 +134,7 @@ with st.sidebar:
         in_dur_in = st.number_input(f"Durasi In (std: {std['dur_std']})", value=float(std['dur_std']), step=1.0)
         in_dur_out = st.number_input(f"Durasi Out (std: {std['dur_std']})", value=float(std['dur_std']), step=1.0)
         
-        in_afr = st.slide("AFR", 11.0, 15.0, 12.8)
+        in_afr = st.slider("AFR", 11.0, 15.0, 12.8)
         in_material = st.selectbox("Piston", ["Casting", "Forged"])
         in_d_type = st.selectbox("Penggerak", ["CVT", "Rantai"])
 
