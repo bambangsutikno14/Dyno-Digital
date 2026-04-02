@@ -16,14 +16,47 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# --- 2. DATABASE PABRIKAN ---
+# --- 2. DATABASE PABRIKAN (FOCUS: MATIC ONLY) ---
 DATABASE_REF = {
-    "YAMAHA": {
-        "NMAX 155 / Aerox": {"bore": 58.0, "stroke": 58.7, "v_head": 14.6, "valve_in": 20.5, "valve_out": 17.5, "venturi": 28.0, "hp_std": 15.09, "peak_rpm": 8000, "limit_std": 9500, "weight_std": 127.0, "valves": 4, "lift_std": 8.2, "dur_std": 240},
-        "Mio Karbu / Soul 115": {"bore": 50.0, "stroke": 57.9, "v_head": 13.7, "valve_in": 23.0, "valve_out": 19.0, "venturi": 24.0, "hp_std": 8.78, "peak_rpm": 8000, "limit_std": 9000, "weight_std": 92.0, "valves": 2, "lift_std": 7.0, "dur_std": 230},
+    "YAMAHA (MATIC)": {
+        "Karbu": {
+            "115cc": {
+                "Mio / Soul 115": {"bore": 50.0, "stroke": 57.9, "v_head": 13.7, "valve_in": 23.0, "valve_out": 19.0, "venturi": 24.0, "hp_std": 8.78, "peak_rpm": 8000, "limit_std": 9000, "weight_std": 92.0, "valves": 2, "lift_std": 7.0, "dur_std": 230}
+            },
+            "125cc": {
+                "Xeon (Carb)": {"bore": 52.4, "stroke": 57.9, "v_head": 14.5, "valve_in": 26.0, "valve_out": 21.0, "venturi": 26.0, "hp_std": 10.7, "peak_rpm": 8500, "limit_std": 9500, "weight_std": 103.0, "valves": 2, "lift_std": 7.5, "dur_std": 235}
+            }
+        },
+        "Injeksi": {
+            "125cc": {
+                "Mio Fino 125 FI": {"bore": 52.4, "stroke": 57.9, "v_head": 14.2, "valve_in": 25.5, "valve_out": 21.0, "venturi": 24.0, "hp_std": 9.5, "peak_rpm": 8000, "limit_std": 9500, "weight_std": 98.0, "valves": 2, "lift_std": 7.8, "dur_std": 235}
+            },
+            "155cc": {
+                "NMAX 155 / Aerox": {"bore": 58.0, "stroke": 58.7, "v_head": 14.6, "valve_in": 20.5, "valve_out": 17.5, "venturi": 28.0, "hp_std": 15.09, "peak_rpm": 8000, "limit_std": 9500, "weight_std": 127.0, "valves": 4, "lift_std": 8.2, "dur_std": 240}
+            },
+            "250cc": {
+                "XMAX 250": {"bore": 70.0, "stroke": 64.9, "v_head": 22.5, "valve_in": 26.5, "valve_out": 22.5, "venturi": 32.0, "hp_std": 22.5, "peak_rpm": 7000, "limit_std": 9000, "weight_std": 179.0, "valves": 4, "lift_std": 8.5, "dur_std": 245}
+            }
+        }
     },
-    "HONDA": {
-        "Vario 150 / PCX": {"bore": 57.3, "stroke": 57.9, "v_head": 15.6, "valve_in": 29.0, "valve_out": 23.0, "venturi": 26.0, "hp_std": 12.92, "peak_rpm": 8500, "limit_std": 9800, "weight_std": 109.0, "valves": 2, "lift_std": 8.0, "dur_std": 235},
+    "HONDA (MATIC)": {
+        "Karbu": {
+            "110cc": {
+                "Beat 110 Karbu": {"bore": 50.0, "stroke": 55.0, "v_head": 11.8, "valve_in": 25.5, "valve_out": 21.0, "venturi": 22.0, "hp_std": 8.22, "peak_rpm": 8000, "limit_std": 9000, "weight_std": 89.0, "valves": 2, "lift_std": 7.0, "dur_std": 230},
+                "Vario 110 Karbu": {"bore": 50.0, "stroke": 55.0, "v_head": 11.5, "valve_in": 25.5, "valve_out": 21.0, "venturi": 24.0, "hp_std": 8.99, "peak_rpm": 8000, "limit_std": 9000, "weight_std": 99.0, "valves": 2, "lift_std": 7.2, "dur_std": 230}
+            }
+        },
+        "Injeksi": {
+            "125cc": {
+                "Vario 125 eSP": {"bore": 52.4, "stroke": 57.9, "v_head": 14.2, "valve_in": 25.5, "valve_out": 21.0, "venturi": 24.0, "hp_std": 11.1, "peak_rpm": 8500, "limit_std": 9500, "weight_std": 111.0, "valves": 2, "lift_std": 7.8, "dur_std": 235}
+            },
+            "150cc": {
+                "Vario 150 / PCX 150": {"bore": 57.3, "stroke": 57.9, "v_head": 15.6, "valve_in": 29.0, "valve_out": 23.0, "venturi": 26.0, "hp_std": 12.92, "peak_rpm": 8500, "limit_std": 9800, "weight_std": 109.0, "valves": 2, "lift_std": 8.0, "dur_std": 235}
+            },
+            "160cc": {
+                "Vario 160 / PCX 160": {"bore": 60.0, "stroke": 55.5, "v_head": 12.8, "valve_in": 23.0, "valve_out": 19.5, "venturi": 28.0, "hp_std": 15.4, "peak_rpm": 8500, "limit_std": 10000, "weight_std": 115.0, "valves": 4, "lift_std": 8.5, "dur_std": 245}
+            }
+        }
     }
 }
 
@@ -70,15 +103,18 @@ def calculate_axis_v22(cc, bore, stroke, cr, rpm_limit, v_in, n_v_in, v_out, n_v
 
 # --- 4. SIDEBAR ---
 with st.sidebar:
-    st.header("1️⃣ MOTOR CONFIG")
-    merk = st.selectbox("Merk", list(DATABASE_REF.keys()))
-    model_name = st.selectbox("Model", list(DATABASE_REF[merk].keys()))
-    std = DATABASE_REF[merk][model_name]
+    st.header("1️⃣ MOTOR CONFIG (MATIC ONLY)")
+    sel_merk = st.selectbox("Merk", list(DATABASE_REF.keys()))
+    sel_sys = st.selectbox("Sistem Bahan Bakar", list(DATABASE_REF[sel_merk].keys()))
+    sel_cc = st.selectbox("Kapasitas (CC)", list(DATABASE_REF[sel_merk][sel_sys].keys()))
+    sel_model = st.selectbox("Model Motor", list(DATABASE_REF[sel_merk][sel_sys][sel_cc].keys()))
+    
+    std = DATABASE_REF[sel_merk][sel_sys][sel_cc][sel_model]
     
     st.header("2️⃣ ENGINE SIMULATION")
     with st.expander("🛠️ Perimeter 1 (Standar)", expanded=True):
         raw_label = st.text_input("Label Run", value=f"Run {len(st.session_state.history)+1}")
-        full_label = f"{raw_label} {model_name.split(' ')[0]}" 
+        full_label = f"{raw_label} {sel_model.split(' ')[0]}" 
         in_bore = st.number_input(f"Bore (std: {std['bore']})", value=float(std['bore']), step=0.1)
         in_stroke = st.number_input(f"Stroke (std: {std['stroke']})", value=float(std['stroke']), step=0.1)
         in_vhead = st.number_input(f"Vol Head (std: {std['v_head']})", value=float(std['v_head']), step=0.1)
@@ -87,11 +123,10 @@ with st.sidebar:
 
     with st.expander("🧪 Detail Expert Tuning", expanded=True):
         in_v_in = st.number_input(f"Klep In (std: {std['valve_in']})", value=float(std['valve_in']), step=0.1)
-        in_n_v_in = st.selectbox("Jml Klep In", [1, 2], index=1 if std['valves']==4 else 0)
+        in_n_v_in = st.selectbox("Jml Klep In", [1, 2, 4], index=1 if std['valves']>=4 else 0)
         in_v_out = st.number_input(f"Klep Out (std: {std['valve_out']})", value=float(std['valve_out']), step=0.1)
-        in_n_v_out = st.selectbox("Jml Klep Out", [1, 2], index=1 if std['valves']==4 else 0)
+        in_n_v_out = st.selectbox("Jml Klep Out", [1, 2, 4], index=1 if std['valves']>=4 else 0)
         
-        # Input +/-
         in_venturi = st.number_input(f"Venturi (std: {std['venturi']})", value=float(std['venturi']), step=0.5)
         in_v_lift = st.number_input(f"Lift (std: {std['lift_std']})", value=float(std['lift_std']), step=0.1)
         in_dur_in = st.number_input(f"Durasi In (std: {std['dur_std']})", value=float(std['dur_std']), step=1.0)
@@ -113,7 +148,7 @@ if run_btn:
     cr_calc = (cc_calc + float(in_vhead)) / float(in_vhead)
     rpms, hps, torques, pspeed, gsin, gsout = calculate_axis_v22(
         cc_calc, in_bore, in_stroke, cr_calc, in_rpm, in_v_in, in_n_v_in, 
-        in_v_out, in_n_v_out, in_v_lift, in_venturi, in_dur_in, in_dur_out, in_afr, in_material, in_d_type, std
+        in_v_out, in_n_v_out, in_v_lift, in_venturi, in_dur_in, dur_out, in_afr, in_material, in_d_type, std
     )
     
     hp_max = max(hps)
@@ -142,14 +177,12 @@ if st.session_state.history:
 
     # --- GRAFIK ---
     fig = go.Figure()
-    # Warna untuk Run (Red, Green, Blue, Yellow, Magenta, Cyan)
     colors = ["rgba(255, 0, 0, 1)", "rgba(0, 255, 0, 1)", "rgba(0, 0, 255, 1)", "rgba(255, 255, 0, 1)", "rgba(255, 0, 255, 1)", "rgba(0, 255, 255, 1)"]
-    bg_colors = ["rgba(255, 0, 0, 0.4)", "rgba(0, 255, 0, 0.4)", "rgba(0, 0, 255, 0.4)", "rgba(255, 255, 0, 0.4)", "rgba(255, 0, 255, 0.4)", "rgba(0, 255, 255, 0.4)"]
+    bg_colors = [c.replace("1)", "0.4)") for c in colors]
 
     for i, r in enumerate(st.session_state.history):
         color = colors[i % len(colors)]
         bg_color = bg_colors[i % len(bg_colors)]
-        text_color = "white" if (i % len(colors)) != 3 else "black" # Hitam jika background kuning
 
         fig.add_trace(go.Scatter(x=r['rpms'], y=r['hps'], name=f"{r['Run']} (HP)", line=dict(color=color, width=3)))
         fig.add_trace(go.Scatter(x=r['rpms'], y=r['torques'], name=f"{r['Run']} (Nm)", line=dict(color=color, width=2, dash='dot'), yaxis="y2"))
@@ -157,17 +190,17 @@ if st.session_state.history:
         # Label di belakang ujung garis
         fig.add_annotation(x=r['rpms'][-1], y=r['hps'][-1], text=r['Run'], showarrow=False, xanchor="left", font=dict(color=color, size=10))
 
-        # Peak Markers (Background tidak solid)
+        # Peak Markers (Tulisan Putih, BG Transparan 0.4)
         idx_hp = np.argmax(r['hps'])
         idx_nm = np.argmax(r['torques'])
         
         fig.add_annotation(x=r['rpms'][idx_hp], y=r['hps'][idx_hp],
                            text=f"Peak: {r['hps'][idx_hp]}HP@{r['rpms'][idx_hp]}",
-                           showarrow=True, arrowhead=1, bgcolor=bg_color, font=dict(color=text_color, size=11))
+                           showarrow=True, arrowhead=1, bgcolor=bg_color, font=dict(color="white", size=11))
         
         fig.add_annotation(x=r['rpms'][idx_nm], y=r['torques'][idx_nm],
                            text=f"Peak: {r['torques'][idx_nm]}Nm@{r['rpms'][idx_nm]}",
-                           showarrow=True, arrowhead=1, bgcolor=bg_color, font=dict(color=text_color, size=11), yref="y2")
+                           showarrow=True, arrowhead=1, bgcolor=bg_color, font=dict(color="white", size=11), yref="y2")
 
     fig.update_layout(template="plotly_dark", height=600, showlegend=False,
                       xaxis=dict(title="Engine RPM", showgrid=True, gridcolor="#333", dtick=1000),
@@ -176,7 +209,7 @@ if st.session_state.history:
     
     st.plotly_chart(fig, use_container_width=True)
     
-    # --- RESTORED TABLES ---
+    # --- TABLES ---
     df = pd.DataFrame(st.session_state.history)
     st.write("### 📊 Performance Dyno Result")
     st.dataframe(df[["Run", "CC", "CR", "AFR", "Max_HP", "RPM_HP", "Max_Nm", "RPM_Nm"]].style.format({
@@ -196,26 +229,18 @@ if st.session_state.history:
     with c1:
         st.subheader("🧐 Analisa Kondisi Mesin")
         if latest['gsin'] > 115: 
-            st.error(f"❌ **TERMINAL VELOCITY:** {latest['gsin']:.1f} m/s. Sesuai buku *4-Stroke Performance Tuning*, kecepatan port di atas 115 m/s memicu 'choking' yang menghentikan kenaikan tenaga.")
+            st.error(f"❌ **TERMINAL VELOCITY:** {latest['gsin']:.1f} m/s. (Port choking).")
         elif latest['gsin'] < 95: 
-            st.warning(f"⚠️ **LOW INERTIA:** {latest['gsin']:.1f} m/s. Velocity di bawah 95 m/s gagal memanfaatkan inersia gas untuk pengisian silinder yang maksimal.")
+            st.warning(f"⚠️ **LOW INERTIA:** {latest['gsin']:.1f} m/s. (Velocity rendah).")
         else: 
-            st.success(f"✅ **OPTIMAL GAS SPEED:** {latest['gsin']:.1f} m/s. Berada di rentang efisiensi puncak pengisian silinder.")
-
-        if latest['pspeed'] > 25: 
-            st.error(f"❌ **CRITICAL PISTON SPEED:** {latest['pspeed']:.1f} m/s melampaui batas ketahanan material komponen mesin balap (25m/s).")
-        elif latest['pspeed'] > 20:
-            st.warning(f"⚠️ **HIGH STRESS:** {latest['pspeed']:.1f} m/s. Beban inersia pada rod-bolt sangat tinggi.")
+            st.success(f"✅ **OPTIMAL GAS SPEED:** {latest['gsin']:.1f} m/s.")
 
     with c2:
         st.subheader("💡 Saran Ahli & Solusi")
         ideal_in = latest['bore'] * 0.52 
-        st.info(f"📍 **Valve Sizing:** Graham Bell merekomendasikan diameter klep In sebesar 50-52% dari diameter Bore untuk mendapatkan keseimbangan Flow vs Velocity. Target: {ideal_in:.1f}mm.")
-        
-        st.warning(f"📍 **Venturi Efficiency:** Luas area Venturi harus dihitung agar tidak menjadi penghambat utama sebelum klep mencapai aliran maksimum.")
-        
-        solusi = "Optimalkan bentuk 'short-side turn' pada porting untuk meningkatkan Flow Coefficient tanpa harus memperbesar diameter port."
+        st.info(f"📍 **Valve Sizing Target:** {ideal_in:.1f}mm (52% Bore).")
+        solusi = "Pada Matic, optimasi Port Velocity sangat krusial karena karakter transmisi CVT yang menahan RPM di rentang tertentu."
         st.success(f"📍 **Solusi Utama:** {solusi}")
 
 st.write("---")
-st.error("⚠️ **DISCLAIMER:** Simulasi ini menggunakan parameter fisik ketat sesuai kaidah thermodinamika mesin.")
+st.error("⚠️ **DISCLAIMER:** Simulasi database MATIC ini menggunakan parameter spesifikasi pabrikan terbaru.")
