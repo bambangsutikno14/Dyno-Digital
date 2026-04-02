@@ -16,21 +16,21 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# --- 2. DATABASE PABRIKAN (Ditambahkan data std Lift & Durasi) ---
+# --- 2. DATABASE PABRIKAN ---
 DATABASE_REF = {
     "YAMAHA": {
-        "NMAX 155 / Aerox": {"bore": 58.0, "stroke": 58.7, "v_head": 14.6, "valve_in": 20.5, "valve_out": 17.5, "venturi": 28.0, "hp_std": 15.09, "peak_rpm": 8000, "limit_std": 9500, "weight_std": 127.0, "valves": 4, "lift_std": 8.2, "dur_std": 240},
-        "Mio Karbu / Soul 115": {"bore": 50.0, "stroke": 57.9, "v_head": 13.7, "valve_in": 23.0, "valve_out": 19.0, "venturi": 24.0, "hp_std": 8.78, "peak_rpm": 8000, "limit_std": 9000, "weight_std": 92.0, "valves": 2, "lift_std": 7.0, "dur_std": 230},
+        "NMAX 155 / Aerox": {"bore": 58.0, "stroke": 58.7, "v_head": 14.6, "valve_in": 20.5, "valve_out": 17.5, "venturi": 28.0, "hp_std": 15.09, "peak_rpm": 8000, "limit_std": 9500, "weight_std": 127.0, "valves": 4},
+        "Mio Karbu / Soul 115": {"bore": 50.0, "stroke": 57.9, "v_head": 13.7, "valve_in": 23.0, "valve_out": 19.0, "venturi": 24.0, "hp_std": 8.78, "peak_rpm": 8000, "limit_std": 9000, "weight_std": 92.0, "valves": 2},
     },
     "HONDA": {
-        "Vario 150 / PCX": {"bore": 57.3, "stroke": 57.9, "v_head": 15.6, "valve_in": 29.0, "valve_out": 23.0, "venturi": 26.0, "hp_std": 12.92, "peak_rpm": 8500, "limit_std": 9800, "weight_std": 109.0, "valves": 2, "lift_std": 8.0, "dur_std": 235},
+        "Vario 150 / PCX": {"bore": 57.3, "stroke": 57.9, "v_head": 15.6, "valve_in": 29.0, "valve_out": 23.0, "venturi": 26.0, "hp_std": 12.92, "peak_rpm": 8500, "limit_std": 9800, "weight_std": 109.0, "valves": 2},
     }
 }
 
 if 'history' not in st.session_state:
     st.session_state.history = []
 
-# --- 3. CORE CALCULATION (LOGIKA ASLI TETAP DIJAGA) ---
+# --- 3. CORE CALCULATION (TIDAK ADA PERUBAHAN LOGIKA) ---
 def calculate_axis_v22(cc, bore, stroke, cr, rpm_limit, v_in, n_v_in, v_out, n_v_out, v_lift, venturi, dur_in, dur_out, afr, material, d_type, std):
     rpms = np.arange(1000, int(rpm_limit) + 100, 100)
     hps, torques = [], []
@@ -90,13 +90,11 @@ with st.sidebar:
         in_n_v_in = st.selectbox("Jml Klep In", [1, 2], index=1 if std['valves']==4 else 0)
         in_v_out = st.number_input(f"Klep Out (std: {std['valve_out']})", value=float(std['valve_out']), step=0.1)
         in_n_v_out = st.selectbox("Jml Klep Out", [1, 2], index=1 if std['valves']==4 else 0)
-        
-        # PERUBAHAN: Input Venturi, Lift, & Durasi (Number Input +/-)
-        in_venturi = st.number_input(f"Venturi (std: {std['venturi']})", value=float(std['venturi']), step=0.5)
-        in_v_lift = st.number_input(f"Lift (std: {std['lift_std']})", value=float(std['lift_std']), step=0.1)
-        in_dur_in = st.number_input(f"Durasi In (std: {std['dur_std']})", value=float(std['dur_std']), step=1.0)
-        in_dur_out = st.number_input(f"Durasi Out (std: {std['dur_std']})", value=float(std['dur_std']), step=1.0)
-        
+        # --- UPDATE 3: PENAMBAHAN VENTURI ---
+        in_venturi = st.number_input(f"Venturi (std: {std['venturi']})", value=float(std['venturi']), step=0.1)
+        in_v_lift = st.number_input("Lift (mm)", value=8.5, step=0.1)
+        in_dur_in = st.slider("Durasi In", 200, 320, 275)
+        in_dur_out = st.slider("Durasi Out", 200, 320, 270)
         in_afr = st.slider("AFR", 11.0, 15.0, 12.8)
         in_material = st.selectbox("Piston", ["Casting", "Forged"])
         in_d_type = st.selectbox("Penggerak", ["CVT", "Rantai"])
@@ -111,18 +109,21 @@ st.title("📟 Hiar Lima Pendawa Tuning")
 
 if run_btn:
     cr_calc = (cc_calc + float(in_vhead)) / float(in_vhead)
+    # in_venturi dimasukkan ke parameter venturi fungsi
     rpms, hps, torques, pspeed, gsin, gsout = calculate_axis_v22(
         cc_calc, in_bore, in_stroke, cr_calc, in_rpm, in_v_in, in_n_v_in, 
         in_v_out, in_n_v_out, in_v_lift, in_venturi, in_dur_in, in_dur_out, in_afr, in_material, in_d_type, std
     )
     
     hp_max = max(hps)
+    pwr = (hp_max / (std['weight_std'] + in_joki)) * 10.0
     st.session_state.history.append({
         "Run": full_label, "CC": cc_calc, "CR": cr_calc, "Max_HP": hp_max, "RPM_HP": rpms[np.argmax(hps)],
         "Max_Nm": max(torques), "RPM_Nm": rpms[np.argmax(torques)], "gsin": gsin, "gsout": gsout, 
         "pspeed": pspeed, "rpms": rpms, "hps": hps, "torques": torques, "v_in": in_v_in, "v_out": in_v_out,
         "bore": in_bore, "AFR": in_afr,
-        "pwr": (hp_max / (std['weight_std'] + in_joki)) * 10.0
+        "T100": 6.5 / math.pow(pwr, 0.45), "T201": 10.2 / math.pow(pwr, 0.45),
+        "T402": 16.5 / math.pow(pwr, 0.45), "T1000": 32.8 / math.pow(pwr, 0.45)
     })
 
 if st.session_state.history:
@@ -136,73 +137,113 @@ if st.session_state.history:
     with m4: st.metric("Flow In (est)", f"{round((latest['v_in']/25.4)**2 * 146, 1)} CFM")
     with m5: st.metric("Flow Out (est)", f"{round((latest['v_out']/25.4)**2 * 146, 1)} CFM")
 
-    # --- GRAFIK DYNOTES VX5 STYLE ---
+    # --- UPDATE 1 & 2: GRAFIK MODEL DYNOTES AXIS VX5 + MARKER ---
     fig = go.Figure()
-    colors = ["#FF0000", "#00FF00", "#0000FF", "#FFFF00", "#FF00FF", "#00FFFF"]
+    
+    colors_hp = ["#00BFFF", "#1E90FF", "#87CEFA"] # Gradasi Biru
+    colors_nm = ["#FF4500", "#FF6347", "#FF7F50"] # Gradasi Merah/Oranye
 
     for i, r in enumerate(st.session_state.history):
-        color = colors[i % len(colors)]
-        # Power Line (Solid)
-        fig.add_trace(go.Scatter(x=r['rpms'], y=r['hps'], name=f"{r['Run']} (HP)", 
-                                 line=dict(color=color, width=3)))
-        # Torque Line (Dotted - Titik-titik saja)
-        fig.add_trace(go.Scatter(x=r['rpms'], y=r['torques'], name=f"{r['Run']} (Nm)", 
-                                 line=dict(color=color, width=2, dash='dot'), yaxis="y2"))
+        c_hp = colors_hp[i % len(colors_hp)]
+        c_nm = colors_nm[i % len(colors_nm)]
+        
+        # Garis HP
+        fig.add_trace(go.Scatter(
+            x=r['rpms'], y=r['hps'], 
+            name=f"{r['Run']} (HP)", 
+            line=dict(color=c_hp, width=4)
+        ))
+        
+        # Garis Torque
+        fig.add_trace(go.Scatter(
+            x=r['rpms'], y=r['torques'], 
+            name=f"{r['Run']} (Nm)", 
+            line=dict(color=c_nm, width=3, dash='dashdot'), 
+            yaxis="y2"
+        ))
 
-        # Label di ujung garis (Belakang)
-        fig.add_annotation(x=r['rpms'][-1], y=r['hps'][-1], text=r['Run'], showarrow=False, 
-                           xanchor="left", font=dict(color=color, size=10))
-
-        # Peak Markers
+        # Tambahkan Titik Puncak (Markers)
         idx_hp = np.argmax(r['hps'])
         idx_nm = np.argmax(r['torques'])
         
-        fig.add_annotation(x=r['rpms'][idx_hp], y=r['hps'][idx_hp],
-                           text=f"Peak: {r['hps'][idx_hp]}HP@{r['rpms'][idx_hp]}",
-                           showarrow=True, arrowhead=1, bgcolor=color, font=dict(color="white"))
+        # Marker Peak HP
+        fig.add_annotation(
+            x=r['rpms'][idx_hp], y=r['hps'][idx_hp],
+            text=f"<b>{r['hps'][idx_hp]} HP</b><br>@{r['rpms'][idx_hp]}",
+            showarrow=True, arrowhead=2, arrowcolor=c_hp,
+            font=dict(color=c_hp, size=12), bgcolor="rgba(0,0,0,0.6)",
+            ax=0, ay=-40
+        )
         
-        fig.add_annotation(x=r['rpms'][idx_nm], y=r['torques'][idx_nm],
-                           text=f"Peak: {r['torques'][idx_nm]}Nm@{r['rpms'][idx_nm]}",
-                           showarrow=True, arrowhead=1, bgcolor=color, font=dict(color="white"), yref="y2")
+        # Marker Peak Torque
+        fig.add_annotation(
+            x=r['rpms'][idx_nm], y=r['torques'][idx_nm],
+            text=f"<b>{r['torques'][idx_nm]} Nm</b><br>@{r['rpms'][idx_nm]}",
+            showarrow=True, arrowhead=2, arrowcolor=c_nm,
+            font=dict(color=c_nm, size=12), bgcolor="rgba(0,0,0,0.6)",
+            ax=0, ay=40, yref="y2"
+        )
 
-    fig.update_layout(template="plotly_dark", height=600, showlegend=False,
-                      xaxis=dict(title="Engine RPM", showgrid=True, gridcolor="#333", dtick=1000),
-                      yaxis=dict(title="Power (HP)", showgrid=True, gridcolor="#333"),
-                      yaxis2=dict(overlaying="y", side="right", title="Torque (Nm)", showgrid=False))
+    fig.update_layout(
+        template="plotly_dark", 
+        height=600,
+        paper_bgcolor='rgba(0,0,0,0)',
+        plot_bgcolor='rgba(10,10,10,1)',
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+        xaxis=dict(
+            title="ENGINE SPEED (RPM)", 
+            showgrid=True, gridcolor="#333", 
+            dtick=1000, range=[1000, latest['rpms'][-1]+500],
+            linecolor="#666", mirror=True
+        ),
+        yaxis=dict(
+            title="POWER (HP)", 
+            showgrid=True, gridcolor="#333", 
+            linecolor=colors_hp[0], color=colors_hp[0],
+            zeroline=False
+        ),
+        yaxis2=dict(
+            overlaying="y", side="right", 
+            title="TORQUE (Nm)", 
+            showgrid=False,
+            linecolor=colors_nm[0], color=colors_nm[0],
+            zeroline=False
+        )
+    )
     
     st.plotly_chart(fig, use_container_width=True)
     
-    # --- ANALISA BERDASARKAN A. GRAHAM BELL (4-STROKE PERFORMANCE TUNING) ---
+    df = pd.DataFrame(st.session_state.history)
+    st.write("### 📊 Performance Dyno Result")
+    st.dataframe(df[["Run", "CC", "CR", "AFR", "Max_HP", "RPM_HP", "Max_Nm", "RPM_Nm"]].style.format({
+        "CC": "{:.2f}", "CR": "{:.2f}", "AFR": "{:.2f}", "Max_HP": "{:.2f}", "Max_Nm": "{:.2f}"
+    }), hide_index=True, use_container_width=True)
+
+    st.write("### 🏁 Drag Simulation Predictions")
+    df_drag = df[["Run", "T100", "T201", "T402", "T1000"]].rename(columns={"T100":"100m","T201":"201m","T402":"402m","T1000":"1000m"})
+    st.dataframe(df_drag.style.format({
+        "100m": "{:.2f}", "201m": "{:.2f}", "402m": "{:.2f}", "1000m": "{:.2f}"
+    }), hide_index=True, use_container_width=True)
+
     st.divider()
-    st.header("🏁 Axis Expert Physics Analysis (Ref: Graham Bell)")
+    st.header("🏁 Axis Expert Physics Analysis")
     c1, c2 = st.columns(2)
     with c1:
         st.subheader("🧐 Analisa Kondisi Mesin")
-        # Ref: Graham Bell - Intake gas speed optimal 100-110 m/s untuk Power Puncak
-        if latest['gsin'] > 115: 
-            st.error(f"❌ **TERMINAL VELOCITY:** {latest['gsin']:.1f} m/s. Menurut Graham Bell, kecepatan di atas 115 m/s menyebabkan 'Choking' di port intake.")
-        elif latest['gsin'] < 95: 
-            st.warning(f"⚠️ **INERTIA LOSS:** {latest['gsin']:.1f} m/s. Velocity terlalu rendah untuk menciptakan efek ramming yang optimal.")
-        else: 
-            st.success(f"✅ **IDEAL PORT VELOCITY:** {latest['gsin']:.1f} m/s. Sesuai target efisiensi volumetrik Graham Bell.")
-
-        # Ref: Graham Bell - Piston Speed Limit
-        if latest['pspeed'] > 25: 
-            st.error(f"❌ **MECHANICAL LIMIT:** {latest['pspeed']:.1f} m/s melampaui batas aman material umum (25 m/s).")
-        elif latest['pspeed'] > 20:
-            st.warning(f"⚠️ **HIGH WEAR:** {latest['pspeed']:.1f} m/s. Beban inersia tinggi pada rod & piston.")
+        if latest['gsin'] > 115: st.error(f"❌ **CHOKE FLOW:** Intake Velocity {latest['gsin']:.1f} m/s terlalu tinggi.")
+        elif latest['gsin'] < 90: st.warning(f"⚠️ **LOW VELOCITY:** {latest['gsin']:.1f} m/s. Torsi bawah loyo.")
+        else: st.success(f"✅ **IDEAL FLOW:** Velocity {latest['gsin']:.1f} m/s. Sangat efisien.")
+        
+        if latest['CR'] > 14.5: st.error(f"❌ **CRITICAL DETONATION:** Kompresi {latest['CR']:.1f}:1 resiko knocking.")
+        if latest['pspeed'] > 21: st.warning(f"⚠️ **PISTON SPEED:** {latest['pspeed']:.1f} m/s mendekati batas aman.")
 
     with c2:
         st.subheader("💡 Saran Ahli & Solusi")
-        # Analisa Rasio Area Klep vs Bore
-        ideal_in = latest['bore'] * 0.52 
-        st.info(f"📍 **Ukuran Klep:** Graham Bell menyarankan diameter Klep In sekitar 50-52% dari Bore untuk aplikasi performa tinggi. Target: {ideal_in:.1f}mm.")
+        st.info(f"📍 **Target Vol Head:** Idealnya {latest['CC'] / 12.5:.2f}cc.")
+        st.warning(f"📍 **Knalpot:** Diameter leher {round(math.sqrt(latest['CC'] * 0.16) * 10, 1)}mm.")
         
-        # Analisa Venturi (Prinsip Bernoulli & VE)
-        st.warning(f"📍 **Venturi Karbu/TB:** Jika mengejar Peak Power di RPM tinggi, pastikan luas area venturi tidak lebih kecil dari 80% luas total port.")
-        
-        solusi = "Fokus pada porting polish untuk meningkatkan koefisien aliran (Flow Coefficient) tanpa memperbesar diameter port secara ekstrem."
+        solusi = f"Perbesar Klep In ke {round(latest['bore']*0.53, 1)}mm." if latest['gsin'] > 108 else "Optimalkan profil porting dan noken as."
         st.success(f"📍 **Solusi Utama:** {solusi}")
 
 st.write("---")
-st.error("⚠️ **DISCLAIMER:** Simulasi ini menggunakan parameter fisik ketat sesuai kaidah thermodinamika mesin.")
+st.error("⚠️ **DISCLAIMER:** Hasil perhitungan adalah perkiraan kalkulasi secara data, kondisi real mungkin sedikit berbeda.")
