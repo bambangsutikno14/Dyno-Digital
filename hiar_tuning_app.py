@@ -104,7 +104,10 @@ with st.sidebar:
         in_v_lift = st.number_input(f"Lift (std: {std['lift_std']})", value=float(std['lift_std']), step=0.1)
         in_dur_in = st.number_input(f"Durasi In (std: {std['dur_std']})", value=float(std['dur_std']), step=1.0)
         in_dur_out = st.number_input(f"Durasi Out (std: {std['dur_std']})", value=float(std['dur_std']), step=1.0)
-        in_afr = st.slider("AFR", 11.0, 15.0, 12.8)
+        
+        # AFR diperbarui menjadi number_input (kolom +/-)
+        in_afr = st.number_input("AFR", value=12.8, min_value=11.0, max_value=15.0, step=0.1)
+        
         in_material = st.selectbox("Piston", ["Casting", "Forged"])
         in_d_type = st.selectbox("Penggerak", ["CVT", "Rantai"])
 
@@ -141,16 +144,14 @@ if st.session_state.history:
     
     # --- LOGIKA WARNA TABEL (DYNAMIC CSS) ---
     def style_performance_table(row):
-        # Default: Biru (Batas Aman/Sangat Dekat Standar)
-        color = 'color: #00BFFF;' 
+        idx = row.name
+        full_row = df.loc[idx] # Mengambil data utuh untuk mengecek gsin & pspeed yang di-hide
         
-        # Hijau: Setingan Optimal (Performa naik tapi Gas Speed & Pspeed Aman)
-        if 100 <= row['gsin'] <= 112 and row['pspeed'] <= 20 and 11.5 <= row['CR'] <= 13.0:
-            color = 'color: #00FF00;'
-            
-        # Merah: Berisiko (Over Limit)
-        if row['gsin'] > 115 or row['pspeed'] > 21 or row['CR'] > 13.5:
-            color = 'color: #FF4B4B;'
+        color = 'color: #00BFFF;' # Biru (Aman/Standar)
+        if 100 <= full_row['gsin'] <= 112 and full_row['pspeed'] <= 20 and 11.5 <= full_row['CR'] <= 13.0:
+            color = 'color: #00FF00;' # Hijau (Optimal)
+        if full_row['gsin'] > 115 or full_row['pspeed'] > 21 or full_row['CR'] > 13.5:
+            color = 'color: #FF4B4B;' # Merah (Berisiko)
             
         return [color] * len(row)
 
@@ -176,11 +177,12 @@ if st.session_state.history:
     fig.update_layout(template="plotly_dark", height=600, showlegend=False, xaxis=dict(title="Engine RPM", dtick=1000), yaxis=dict(title="Power (HP)"), yaxis2=dict(overlaying="y", side="right", title="Torque (Nm)"))
     st.plotly_chart(fig, use_container_width=True)
     
-    # --- TABLES DENGAN BATAS WARNA ---
+    # --- TABLES ---
     df = pd.DataFrame(st.session_state.history)
     st.write("### 📊 Performance Dyno Result")
-    # Mapping style warna ke tabel
-    styled_df = df[["Run", "CC", "CR", "AFR", "Max_HP", "RPM_HP", "Max_Nm", "RPM_Nm", "gsin", "pspeed"]].style.apply(style_performance_table, axis=1).format({
+    
+    # Menghilangkan gsin & pspeed dari tabel yang dirender, membatasi desimal 2 angka di belakang koma
+    styled_df = df[["Run", "CC", "CR", "AFR", "Max_HP", "RPM_HP", "Max_Nm", "RPM_Nm"]].style.apply(style_performance_table, axis=1).format({
         "CC": "{:.2f}", "CR": "{:.2f}", "AFR": "{:.2f}", "Max_HP": "{:.2f}", "Max_Nm": "{:.2f}"
     })
     st.dataframe(styled_df, hide_index=True, use_container_width=True)
@@ -216,4 +218,5 @@ if st.session_state.history:
             for r in rekom: st.warning(r)
 
 st.write("---")
-st.caption("Warna Tabel: 🔵 Biru (Aman/Standar) | 🟢 Hijau (Optimal Performance) | 🔴 Merah (Risiko Kerusakan)")
+# Disclaimer diperbarui sesuai permintaan, legenda warna digabung agar tidak hilang.
+st.caption("⚠️ **DISCLAIMER:** Simulasi hasil perhitungan hanya kalkulasi dari input spesifikasi, kenyataan di lapangan mungkin berbeda sesuai setingan mekanik. GassPoll.")
