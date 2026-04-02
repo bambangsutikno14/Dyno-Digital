@@ -104,10 +104,7 @@ with st.sidebar:
         in_v_lift = st.number_input(f"Lift (std: {std['lift_std']})", value=float(std['lift_std']), step=0.1)
         in_dur_in = st.number_input(f"Durasi In (std: {std['dur_std']})", value=float(std['dur_std']), step=1.0)
         in_dur_out = st.number_input(f"Durasi Out (std: {std['dur_std']})", value=float(std['dur_std']), step=1.0)
-        
-        # AFR diperbarui menjadi number_input (kolom +/-)
         in_afr = st.number_input("AFR", value=12.8, min_value=11.0, max_value=15.0, step=0.1)
-        
         in_material = st.selectbox("Piston", ["Casting", "Forged"])
         in_d_type = st.selectbox("Penggerak", ["CVT", "Rantai"])
 
@@ -145,14 +142,12 @@ if st.session_state.history:
     # --- LOGIKA WARNA TABEL (DYNAMIC CSS) ---
     def style_performance_table(row):
         idx = row.name
-        full_row = df.loc[idx] # Mengambil data utuh untuk mengecek gsin & pspeed yang di-hide
-        
+        full_row = df.loc[idx] 
         color = 'color: #00BFFF;' # Biru (Aman/Standar)
         if 100 <= full_row['gsin'] <= 112 and full_row['pspeed'] <= 20 and 11.5 <= full_row['CR'] <= 13.0:
             color = 'color: #00FF00;' # Hijau (Optimal)
         if full_row['gsin'] > 115 or full_row['pspeed'] > 21 or full_row['CR'] > 13.5:
             color = 'color: #FF4B4B;' # Merah (Berisiko)
-            
         return [color] * len(row)
 
     st.header("🌪️ Flowbench & Physical Analysis")
@@ -180,8 +175,6 @@ if st.session_state.history:
     # --- TABLES ---
     df = pd.DataFrame(st.session_state.history)
     st.write("### 📊 Performance Dyno Result")
-    
-    # Menghilangkan gsin & pspeed dari tabel yang dirender, membatasi desimal 2 angka di belakang koma
     styled_df = df[["Run", "CC", "CR", "AFR", "Max_HP", "RPM_HP", "Max_Nm", "RPM_Nm"]].style.apply(style_performance_table, axis=1).format({
         "CC": "{:.2f}", "CR": "{:.2f}", "AFR": "{:.2f}", "Max_HP": "{:.2f}", "Max_Nm": "{:.2f}"
     })
@@ -191,32 +184,62 @@ if st.session_state.history:
     df_drag = df[["Run", "T100", "T201", "T402", "T1000"]].rename(columns={"T100":"100m","T201":"201m","T402":"402m","T1000":"1000m"})
     st.dataframe(df_drag.style.format({"100m": "{:.2f}s", "201m": "{:.2f}s", "402m": "{:.2f}s", "1000m": "{:.2f}s"}), hide_index=True, use_container_width=True)
 
-    # --- ANALISA DINAMIS ---
+    # --- ANALISA DINAMIS TINGKAT TINGGI (DIPERBARUI) ---
     st.divider()
     st.header(f"🏁 Axis Expert Physics Analysis: {latest['model']}")
-    c1, c2 = st.columns(2)
-    with c1:
-        st.subheader("🧐 Analisa Perubahan Teknis")
-        if latest['v_in'] > latest['std_data']['valve_in'] and latest['gsin'] < 100:
-            st.error(f"⚠️ **DILEMA WEAK SCAVENGING:** Klep diperbesar, tapi Gas Speed drop. Motor akan ngempos di bawah.")
-        elif latest['gsin'] > 115:
-            st.error(f"⚠️ **INTAKE VELOCITY CRITICAL:** {latest['gsin']:.1f} m/s. Sonic choke terjadi.")
-        else:
-            st.success(f"✅ **VELOCITY BALANCE:** Aliran ideal untuk {latest['model']}.")
     
+    # Hitung Perbandingan dengan Standar
+    std_cc = (0.785398 * latest['std_data']['bore']**2 * latest['std_data']['stroke']) / 1000.0
+    cc_increase_pct = ((latest['CC'] - std_cc) / std_cc) * 100
+    bore_stroke_ratio = latest['bore'] / latest['stroke']
+    lift_valve_ratio = latest['lift'] / latest['v_in']
+    
+    # 1. Analisa Performa
+    analisa_teks = f"• Kapasitas mesin saat ini: **{latest['CC']:.1f}cc** "
+    if cc_increase_pct > 1: analisa_teks += f"(Naik **{cc_increase_pct:.1f}%** dari pabrikan). \n"
+    else: analisa_teks += "(Masih standar pabrikan). \n"
+    
+    if bore_stroke_ratio > 1.1: analisa_teks += f"• Karakter mesin **Overbore** (Rasio {bore_stroke_ratio:.2f}). Mesin ini mengorbankan putaran bawah demi nafas atas yang panjang dan sanggup berkitir di RPM sangat tinggi.\n"
+    elif bore_stroke_ratio < 0.9: analisa_teks += f"• Karakter mesin **Long-Stroke** (Rasio {bore_stroke_ratio:.2f}). Mengandalkan torsi instan sejak RPM rendah, sangat responsif di perkotaan/stop & go.\n"
+    else: analisa_teks += f"• Karakter mesin **Square/Near-Square**. Output tenaga tersebar sangat merata dari putaran bawah hingga atas.\n"
+    
+    if latest['gsin'] < 90: analisa_teks += f"• ⚠️ **Weak Scavenging:** Kecepatan aliran gas lambat ({latest['gsin']:.1f} m/s). Motor akan terasa *ngempos* saat stop-n-go."
+    elif 90 <= latest['gsin'] <= 112: analisa_teks += f"• ✅ **Ideal Velocity:** Kecepatan gas sangat efisien di {latest['gsin']:.1f} m/s. Pengisian silinder optimal tanpa hambatan."
+    else: analisa_teks += f"• 🛑 **Sonic Choke:** Kecepatan ({latest['gsin']:.1f} m/s) terlalu tinggi. Udara akan menabrak dinding *porting* dan tenaga putaran atas akan tertahan."
+
+    # 2. Rekomendasi Ahli (Graham Bell)
+    bell_teks = ""
+    if lift_valve_ratio < 0.25:
+        bell_teks += f"📖 **Valve Lift Theory:** Menurut A. Graham Bell, rasio angkatan klep idealnya 0.25 - 0.30 dari diameter klep. Rasio Anda terlalu rendah (**{lift_valve_ratio:.2f}**). Mesin gagal bernafas maksimal, kurva HP akan tertahan.\n\n"
+    elif lift_valve_ratio > 0.32:
+        bell_teks += f"📖 **Valve Stress:** Rasio lift Anda (**{lift_valve_ratio:.2f}**) sangat ekstrem melebihi standar Bell (Max 0.30). Flow memang besar, namun berisiko *Valve Floating* di RPM tinggi jika per klep tidak diganti tipe *Racing*.\n\n"
+    else:
+        bell_teks += f"📖 **Curtain Area:** Rasio lift Anda (**{lift_valve_ratio:.2f}**) berada di *Sweet Spot* Graham Bell (0.25-0.30). Geometri area bukaan klep sangat sempurna.\n\n"
+
+    if latest['CR'] > 13.0: bell_teks += f"🔥 **Detonation Risk:** Bell memperingatkan bahwa rasio kompresi tinggi (**{latest['CR']:.1f}:1**) wajib menggunakan bahan bakar oktan tinggi (>98) dan ubahan *Squish Band* agar terhindar dari *Engine Knocking* (Ngelitik)."
+    else: bell_teks += f"🛡️ **Thermal Efficiency:** Rasio kompresi dinamis (**{latest['CR']:.1f}:1**) masih dalam batas toleransi aman untuk durabilitas jalan raya menurut teori pembakaran internal."
+
+    # 3. Solusi Part
+    parts = []
+    if cc_increase_pct > 10: parts.append(f"⚙️ **Fuel System:** Karena CC naik {cc_increase_pct:.1f}%, wajib ganti/reamer Injector atau Pilot/Main Jet karbu untuk mencegah keausan piston akibat *Lean Mixture*.")
+    if latest['v_in'] > latest['std_data']['valve_in']: parts.append(f"⚙️ **Throttle Body/Karbu:** Klep sudah di-upgrade ({latest['v_in']}mm). Wajib pakai TB/Venturi minimal **{latest['v_in'] * 1.15:.1f}mm** agar aliran udara tidak tercekik di ujung luar.")
+    if latest['pspeed'] > 19: parts.append(f"⚙️ **Kruk As & Stang:** Piston speed menembus {latest['pspeed']:.1f} m/s (Limit harian 18 m/s). Wajib aplikasi *Forged Conrod* dan *Balancing Kruk As* ulang.")
+    if latest['gsin'] < 90: parts.append("⚙️ **Intake Manifold:** Gunakan leher angsa lebih kecil/panjang untuk memadatkan tekanan udara (*Velocity*).")
+    if latest['gsin'] > 112: parts.append("⚙️ **Porting & Polish:** Wajib melebarkan jalur in/ex, terutama mengeruk area *Bowl* di bawah *seating* klep.")
+    if len(parts) == 0: parts.append("⚙️ **Transmisi CVT:** Mesin dalam kondisi prima/standar. Fokus tingkatkan akselerasi lewat custom sudut Pulley, Roller lebih ringan, dan Per CVT 1000-1500 RPM.")
+
+    # Render Kolom
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        st.subheader("📊 Analisa Performa")
+        st.info(analisa_teks)
     with c2:
-        st.subheader("💡 Rekomendasi Part Spesifik")
-        rekom = []
-        if latest['gsin'] < 100: rekom.append("🛠️ **Intake:** Gunakan leher manifold lebih panjang/kecil.")
-        if latest['gsin'] > 115: rekom.append(f"🛠️ **Porting:** Area bowl wajib diperlebar. TB minimal {latest['v_in']*1.2:.1f}mm.")
-        if latest['pspeed'] > 21: rekom.append("🛠️ **Internal:** Wajib Stang Seher I-Beam & balance kruk as.")
-        if latest['CR'] > 13.5: rekom.append("🛠️ **Bahan Bakar:** Wajib Avgas/Race Fuel & Radiator High Flow.")
-        if latest['lift'] / latest['v_in'] < 0.25: rekom.append(f"🛠️ **Noken As:** Lift terlalu rendah. Target min: {latest['v_in']*0.3:.1f}mm.")
-        
-        if not rekom: st.success("📍 Semua parameter sinkron.")
-        else:
-            for r in rekom: st.warning(r)
+        st.subheader("📚 Analisa Ahli (Graham Bell)")
+        st.warning(bell_teks)
+    with c3:
+        st.subheader("🛠️ Solusi & Rekomendasi Part")
+        for p in parts:
+            st.success(p)
 
 st.write("---")
-# Disclaimer diperbarui sesuai permintaan, legenda warna digabung agar tidak hilang.
-st.caption("⚠️ **DISCLAIMER:** Simulasi hasil perhitungan hanya kalkulasi dari input spesifikasi, kenyataan di lapangan mungkin berbeda sesuai setingan mekanik. GassPoll.")
+st.caption("⚠️ **DISCLAIMER:** Simulasi hasil perhitungan hanya kalkulasi dari input spesifikasi, kenyataan di lapangan mungkin berbeda sesuai setingan mekanik. GassPoll. | *Warna Tabel: 🔵 Biru (Batas Aman) | 🟢 Hijau (Optimal) | 🔴 Merah (Risiko)*")
