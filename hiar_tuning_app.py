@@ -105,7 +105,7 @@ def calculate_axis_v22(cc, bore, stroke, cr, rpm_limit, v_in, n_v_in, v_out, n_v
 
 # --- 4. SIDEBAR ---
 with st.sidebar:
-    st.header("1️⃣ MOTOR CONFIG (MATIC ONLY)")
+    st.header("1️⃣ MOTOR CONFIG")
     sel_merk = st.selectbox("Merk", list(DATABASE_REF.keys()))
     sel_sys = st.selectbox("Sistem Bahan Bakar", list(DATABASE_REF[sel_merk].keys()))
     sel_cc = st.selectbox("Kapasitas (CC)", list(DATABASE_REF[sel_merk][sel_sys].keys()))
