@@ -141,15 +141,13 @@ if st.session_state.history:
     with m5: st.metric("Flow Out (est)", f"{round((latest['v_out']/25.4)**2 * 146, 1)} CFM")
 
     fig = go.Figure()
-    colors = ["#FF0000", "#00FF00", "#0000FF", "#FFFF00"]
-    for i, r in enumerate(st.session_state.history):
-        c = colors[i % 4]
-        fig.add_trace(go.Scatter(x=r['rpms'], y=r['hps'], name=f"{r['Run']} (HP)", line=dict(color=c, width=4)))
-        fig.add_trace(go.Scatter(x=r['rpms'], y=r['torques'], line=dict(color=c, dash='dot'), yaxis="y2", name=f"{r['Run']} (Nm)"))
+    for r in st.session_state.history:
+        fig.add_trace(go.Scatter(x=r['rpms'], y=r['hps'], name=f"{r['Run']} (HP)", line=dict(width=3)))
+        fig.add_trace(go.Scatter(x=r['rpms'], y=r['torques'], name=f"{r['Run']} (Nm)", line=dict(dash='dot'), yaxis="y2"))
 
-    fig.update_layout(template="plotly_dark", height=500, paper_bgcolor="#000", plot_bgcolor="#000",
-                      xaxis=dict(title="RPM", gridcolor="#333", dtick=1000), 
-                      yaxis=dict(title="Power (HP)", gridcolor="#333"),
+    fig.update_layout(template="plotly_dark", height=500,
+                      xaxis=dict(title="RPM", showgrid=True, gridcolor="#444", dtick=1000), # GRID SETIAP 1000
+                      yaxis=dict(title="Horsepower (HP)", showgrid=True, gridcolor="#444"),
                       yaxis2=dict(overlaying="y", side="right", title="Torque (Nm)"))
     st.plotly_chart(fig, use_container_width=True)
     
