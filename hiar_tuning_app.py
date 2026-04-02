@@ -134,7 +134,9 @@ with st.sidebar:
         in_dur_in = st.number_input(f"Durasi In (std: {std['dur_std']})", value=float(std['dur_std']), step=1.0)
         in_dur_out = st.number_input(f"Durasi Out (std: {std['dur_std']})", value=float(std['dur_std']), step=1.0)
         
-        in_afr = st.slider("AFR", 11.0, 15.0, 12.8)
+        # PERUBAHAN 1: Mengubah Slider AFR menjadi Number Input (+-)
+        in_afr = st.number_input("AFR (Rasio Udara/BBM)", min_value=11.0, max_value=15.0, value=12.8, step=0.1)
+        
         in_material = st.selectbox("Piston", ["Casting", "Forged"])
         in_d_type = st.selectbox("Penggerak", ["CVT", "Rantai"])
 
@@ -213,62 +215,76 @@ if st.session_state.history:
         "100m": "{:.2f}s", "201m": "{:.2f}s", "402m": "{:.2f}s", "1000m": "{:.2f}s"
     }), hide_index=True, use_container_width=True)
 
-    # --- ANALISA DINAMIS (GRAHAM BELL PRINCIPLES) ---
+    # --- PERUBAHAN 2: ANALISA DINAMIS (GRAHAM BELL PRINCIPLES) 3 KOLOM ---
     st.divider()
-    st.header("🏁 Axis Expert Physics Analysis (Ref: A. Graham Bell)")
-    c1, c2 = st.columns(2)
+    st.header("🏁 Axis Expert Physics Analysis")
+    
+    c1, c2, c3 = st.columns(3)
+    lift_ratio = latest['lift'] / latest['v_in']
     
     with c1:
-        st.subheader("🧐 Analisa Kondisi Mesin")
-        # Analisa Gas Speed
-        if latest['gsin'] > 115:
-            st.error(f"⚠️ **Port Choking:** Gas speed {latest['gsin']:.1f} m/s terlalu tinggi. Intake port terlalu kecil untuk CC ini, menyebabkan tenaga 'tertahan' di RPM atas.")
-        elif latest['gsin'] < 95:
-            st.warning(f"⚠️ **Weak Scavenging:** Gas speed {latest['gsin']:.1f} m/s terlalu rendah. Port terlalu besar, torsi bawah akan loyo karena efek inersia gas lemah.")
-        else:
-            st.success(f"✅ **Ideal Port Velocity:** {latest['gsin']:.1f} m/s. Efisiensi volumetrik berada pada titik optimal untuk tenaga puncak.")
-
-        # Analisa Compression vs Material
-        if latest['CR'] > 13.0 and latest['material'] == "Casting":
-            st.error(f"⚠️ **Detonation Risk:** Rasio kompresi {latest['CR']:.1f}:1 terlalu tinggi untuk piston casting. Risiko retak pada dome piston sangat besar.")
-        elif latest['CR'] > 12.5:
-            st.warning(f"🔔 **Thermal Load:** Kompresi {latest['CR']:.1f}:1 membutuhkan manajemen panas (oli & pendinginan) yang ekstra ketat.")
-
-        # Analisa Lift/Valve Ratio
-        lift_ratio = latest['lift'] / latest['v_in']
-        if lift_ratio < 0.25:
-            st.warning(f"⚠️ **Insufficient Lift:** Rasio lift ({lift_ratio:.2f}). Klep kurang membuka lebar untuk mengalirkan campuran udara-bahan bakar secara maksimal.")
-        elif lift_ratio > 0.35:
-            st.error(f"⚠️ **Aggressive Cam:** Rasio lift ({lift_ratio:.2f}) sangat tinggi. Risiko floating pada per klep standar meningkat drastis.")
+        st.subheader("🧐 1. Analisa Spek Mesin")
+        st.markdown(f"- **Kapasitas Nyata:** Berada di angka **{latest['CC']:.2f} cc** dengan kompresi statis terukur **{latest['CR']:.2f}:1**.")
+        st.markdown(f"- **Kecepatan Piston:** Pada limiter, piston bergerak secepat **{latest['pspeed']:.2f} m/s**.")
+        st.markdown(f"- **Kecepatan Gas (Gas Speed):** Aliran campuran bahan bakar masuk di kecepatan **{latest['gsin']:.2f} m/s** dan gas buang keluar di **{latest['gsout']:.2f} m/s**.")
+        st.markdown(f"- **Efisiensi Klep:** Rasio lift terhadap diameter klep in berada pada persentase **{(lift_ratio * 100):.1f}%** ({lift_ratio:.3f}).")
+        st.markdown(f"- **Rasio Udara (AFR):** Settingan bahan bakar di angka **{latest['AFR']:.2f}**.")
 
     with c2:
-        st.subheader("💡 Saran Ahli & Rekomendasi Part")
-        rekomendasi = []
-        
-        # Logika rekomendasi part dinamis
+        st.subheader("📚 2. Saran Ahli (Teori)")
+        # Analisa Dinamis Gas Speed berdasarkan buku
         if latest['gsin'] > 115:
-            rekomendasi.append("1. **Porting & Polish:** Perbesar diameter porting intake (fokus pada area bowl) atau ganti **Throttle Body (TB)** yang lebih besar.")
-        if latest['gsin'] < 95:
-            rekomendasi.append("1. **Intake Velocity:** Kecilkan area porting atau gunakan intake manifold dengan diameter lebih kecil untuk meningkatkan kecepatan aliran.")
-        
-        if latest['CR'] > 12.8:
-            rekomendasi.append("2. **Piston:** Wajib ganti ke **Forged Piston** untuk daya tahan tekanan tinggi.")
-            rekomendasi.append("3. **Busi:** Gunakan busi tipe dingin (misal: NGK Iridium Heat Range 9).")
-        
-        if lift_ratio < 0.28:
-            rekomendasi.append("4. **Camshaft:** Gunakan noken as dengan **Lift lebih tinggi** untuk memaksimalkan Flow Coefficient.")
-        
-        if latest['pspeed'] > 20:
-            rekomendasi.append("5. **Valve Spring:** Ganti ke per klep racing (High Tension) untuk mencegah *valve floating* di RPM tinggi.")
-
-        if latest['AFR'] > 13.5:
-            rekomendasi.append("6. **Fuel System:** Ganti **Injektor dengan hole lebih banyak/cc besar** untuk menjaga AFR tetap kaya (12.5-12.8) saat beban penuh.")
-
-        if not rekomendasi:
-            st.success("📍 Setingan saat ini sudah sangat seimbang menurut parameter Graham Bell.")
+            st.error(f"Menurut A.G. Bell, Gas Speed {latest['gsin']:.2f} m/s menyebabkan **Port Choking**. Udara menabrak dinding porting, tenaga akan 'tertahan' secara tiba-tiba di RPM atas.")
+        elif latest['gsin'] < 95:
+            st.warning(f"Gas Speed {latest['gsin']:.2f} m/s terlalu lambat. Teori scavenging menyatakan inersia yang lemah membuat torsi bawah loyo.")
         else:
-            for item in rekomendasi:
-                st.info(item)
+            st.success(f"Velositas {latest['gsin']:.2f} m/s sangat ideal. Efisiensi Volumetrik (VE) terjaga optimal untuk mengail tenaga di seluruh rentang RPM.")
+
+        # Analisa Dinamis Lift Ratio berdasarkan buku
+        if lift_ratio < 0.25:
+            st.warning(f"Rasio lift {lift_ratio:.3f} dinilai kurang. Mesin gagal memanfaatkan ukuran klep {latest['v_in']} mm sepenuhnya, udara tercekik oleh durasi buka.")
+        elif lift_ratio > 0.33:
+            st.error(f"Rasio lift {lift_ratio:.3f} tergolong agresif. A.G. Bell mengingatkan bahwa profil ekstrim meningkatkan friksi mekanikal tajam.")
+
+        # Analisa Dinamis Piston Speed
+        if latest['pspeed'] > 21:
+            st.error(f"Piston Speed {latest['pspeed']:.2f} m/s mendekati batas stres metalurgi! Panas berlebih akan mengancam pelumasan liner.")
+            
+    with c3:
+        st.subheader("🛠️ 3. Solusi & Rekomendasi Part")
+        rekomendasi_ditemukan = False
+        
+        # Rekomendasi Porting / TB dinamis
+        if latest['gsin'] > 115:
+            st.info(f"🔹 **Intake/TB:** Ganti Throttle Body (TB) / Karbu lebih besar dari **{latest['venturi']} mm** atau perlebar porting intake.")
+            rekomendasi_ditemukan = True
+        elif latest['gsin'] < 95:
+            st.info(f"🔹 **Manifold:** Gunakan Intake Manifold lebih sempit untuk menaikkan velositas mendekati 100-110 m/s.")
+            rekomendasi_ditemukan = True
+
+        # Rekomendasi Piston & Kompresi dinamis
+        if latest['CR'] > 12.8 and latest['material'] == "Casting":
+            st.error(f"🔹 **Piston:** Wajib ganti ke **Forged Piston ukuran {latest['bore']} mm** untuk menahan kompresi statis {latest['CR']:.2f}:1.")
+            rekomendasi_ditemukan = True
+
+        # Rekomendasi Noken As (Camshaft) dinamis
+        if lift_ratio < 0.28:
+            target_lift = latest['v_in'] * 0.30
+            st.info(f"🔹 **Noken As:** Ganti dengan noken as profil tinggi, cari yang memiliki lift klep minimal **{target_lift:.2f} mm**.")
+            rekomendasi_ditemukan = True
+
+        # Rekomendasi Per Klep dinamis
+        if latest['pspeed'] > 20 or lift_ratio > 0.33:
+            st.warning(f"🔹 **Per Klep:** Segera pasang **Per Klep Racing / High Tension** untuk mencegah *valve floating* di kecepatan piston {latest['pspeed']:.2f} m/s.")
+            rekomendasi_ditemukan = True
+            
+        # Rekomendasi Injector/Spuyer
+        if latest['AFR'] > 13.5:
+            st.warning(f"🔹 **Sistem BBM:** AFR {latest['AFR']:.1f} terlalu kering. Ganti **Injektor Debit Lebih Besar** agar mesin tidak overheat.")
+            rekomendasi_ditemukan = True
+
+        if not rekomendasi_ditemukan:
+            st.success("✅ Setingan saat ini sudah sangat seimbang menurut parameter Graham Bell. Tidak ada part mendesak yang perlu diganti.")
 
 st.write("---")
-st.error("⚠️ **DISCLAIMER:** Seluruh saran berdasarkan perhitungan matematis 4-Stroke Performance Tuning.")
+st.error("⚠️ **DISCLAIMER:** Perhitungan hanya estimasi kalkulasi data, hasil mungkin berbeda dengan kenyataan tergantung tuning mekanik.")
