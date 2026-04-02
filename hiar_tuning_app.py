@@ -30,8 +30,8 @@ DATABASE_REF = {
 if 'history' not in st.session_state:
     st.session_state.history = []
 
-# --- 3. CORE CALCULATION (V21 - UPDATED DROP-OFF LOGIC) ---
-def calculate_axis_v21(cc, bore, stroke, cr, rpm_limit, v_in, n_v_in, v_out, n_v_out, v_lift, venturi, dur_in, dur_out, afr, material, d_type, std):
+# --- 3. CORE CALCULATION (V22 - FRICTION & SHARP DROP LOGIC) ---
+def calculate_axis_v22(cc, bore, stroke, cr, rpm_limit, v_in, n_v_in, v_out, n_v_out, v_lift, venturi, dur_in, dur_out, afr, material, d_type, std):
     rpms = np.arange(1000, int(rpm_limit) + 100, 100)
     hps, torques = [], []
     
@@ -47,19 +47,25 @@ def calculate_axis_v21(cc, bore, stroke, cr, rpm_limit, v_in, n_v_in, v_out, n_v
     bmep_base = (float(std['hp_std']) * 950000.0) / (float(std['bore']**2 * 0.785 * std['stroke']/1000) * float(std['peak_rpm']) * 0.85)
 
     for r in rpms:
-        # LOGIKA TURUN: Mengubah divisor kanan (setelah peak) dari 2800 menjadi 1800 agar grafik turun tajam
-        ve = math.exp(-((r - adj_peak_rpm) / 4800.0)**2) if r <= adj_peak_rpm else math.exp(-((r - adj_peak_rpm) / 1800.0)**2)
+        # 1. VE Drop-off (Dibuat lebih curam/agresif: 1200)
+        ve = math.exp(-((r - adj_peak_rpm) / 4800.0)**2) if r <= adj_peak_rpm else math.exp(-((r - adj_peak_rpm) / 1200.0)**2)
+        
+        # 2. Gas Speed Analysis
         ps_speed = (2.0 * float(stroke) * float(r)) / 60000.0
         gs_in = ((float(bore) / eff_v_in)**2) * ps_speed
         gs_out = ((float(bore) / eff_v_out)**2) * ps_speed 
         
-        if gs_in > 115.0: ve *= (115.0 / gs_in)**2.2
-        if gs_out > 110.0: ve *= (110.0 / gs_out)**1.8
+        if gs_in > 115.0: ve *= (115.0 / gs_in)**2.5 # Penalti gas speed lebih ketat
+        if gs_out > 110.0: ve *= (110.0 / gs_out)**2.0
         
-        ps_limit = 27.5 if material == "Forged" else 21.0
-        if ps_speed > ps_limit: ve *= (ps_limit / ps_speed)**2.5
+        # 3. Mechanical Friction Loss (Kunci agar grafik turun setelah peak)
+        # Semakin tinggi RPM, gesekan mesin memakan tenaga secara eksponensial
+        friction_loss = (r / 15000.0)**2 
         
+        # 4. Final HP Calculation
         hp = (bmep_base * float(cc) * float(r) * ve * d_loss * afr_mod) / 950000.0
+        hp *= (1.0 - friction_loss) # Menerapkan kerugian gesek
+        
         if v_lift / v_in > 0.30: hp *= (1.0 + ((v_lift/v_in) - 0.30) * 0.1)
         if cr > 14.5: hp *= (1.0 - (cr - 14.5) * 0.15)
         
@@ -107,7 +113,7 @@ st.title("📟 Hiar Lima Pendawa Tuning")
 
 if run_btn:
     cr_calc = (cc_calc + float(in_vhead)) / float(in_vhead)
-    rpms, hps, torques, pspeed, gsin, gsout = calculate_axis_v21(
+    rpms, hps, torques, pspeed, gsin, gsout = calculate_axis_v22(
         cc_calc, in_bore, in_stroke, cr_calc, in_rpm, in_v_in, in_n_v_in, 
         in_v_out, in_n_v_out, in_v_lift, 28.0, in_dur_in, in_dur_out, in_afr, in_material, in_d_type, std
     )
@@ -136,29 +142,22 @@ if st.session_state.history:
 
     fig = go.Figure()
     for r in st.session_state.history:
-        # HP LINE
         fig.add_trace(go.Scatter(x=r['rpms'], y=r['hps'], name=f"{r['Run']} (HP)", line=dict(width=4)))
-        # Nm LINE
         fig.add_trace(go.Scatter(x=r['rpms'], y=r['torques'], name=f"{r['Run']} (Nm)", line=dict(dash='dot'), yaxis="y2"))
         
-        # PEAK HP MARKER (Menampilkan HP & RPM Tertinggi di Grafik)
+        # LABEL PEAK HP
         fig.add_trace(go.Scatter(
-            x=[r['RPM_HP']], y=[r['Max_HP']],
-            mode='markers+text',
+            x=[r['RPM_HP']], y=[r['Max_HP']], mode='markers+text',
             text=[f"Peak: {r['Max_HP']:.2f} HP @ {r['RPM_HP']} RPM"],
-            textposition="top center",
-            marker=dict(size=12, symbol='star', color='yellow'),
-            name="Peak HP", showlegend=False
+            textposition="top center", marker=dict(size=12, symbol='star', color='yellow'), showlegend=False
         ))
         
-        # PEAK Nm MARKER (Menampilkan Torsi & RPM Tertinggi di Grafik)
+        # LABEL PEAK Nm
         fig.add_trace(go.Scatter(
-            x=[r['RPM_Nm']], y=[r['Max_Nm']],
-            mode='markers+text',
+            x=[r['RPM_Nm']], y=[r['Max_Nm']], mode='markers+text',
             text=[f"Peak: {r['Max_Nm']:.2f} Nm @ {r['RPM_Nm']} RPM"],
-            textposition="bottom center",
-            marker=dict(size=12, symbol='star', color='cyan'),
-            yaxis="y2", name="Peak Nm", showlegend=False
+            textposition="bottom center", marker=dict(size=12, symbol='star', color='cyan'),
+            yaxis="y2", showlegend=False
         ))
 
     fig.update_layout(template="plotly_dark", height=550,
@@ -168,7 +167,7 @@ if st.session_state.history:
     st.plotly_chart(fig, use_container_width=True)
 
     df = pd.DataFrame(st.session_state.history)
-    st.write("### 📊 Dyno Comparison Ledger")
+    st.write("### 📊 Performance Dyno Result")
     st.dataframe(df[["Run", "CC", "CR", "AFR", "Max_HP", "RPM_HP", "Max_Nm", "RPM_Nm"]].style.format({
         "CC": "{:.2f}", "CR": "{:.2f}", "AFR": "{:.2f}", "Max_HP": "{:.2f}", "Max_Nm": "{:.2f}"
     }), hide_index=True, use_container_width=True)
@@ -200,4 +199,4 @@ if st.session_state.history:
         st.success(f"📍 **Solusi Utama:** {solusi}")
 
 st.write("---")
-st.error("⚠️ **DISCLAIMER:** Batas fisik (Choke Flow & Piston Speed) diterapkan sesuai standar mesin 4 tak.")
+st.error("⚠️ **DISCLAIMER:** Batas fisik (Choke Flow & Friction) diterapkan secara ketat.")
