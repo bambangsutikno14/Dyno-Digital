@@ -30,48 +30,36 @@ DATABASE_REF = {
 if 'history' not in st.session_state:
     st.session_state.history = []
 
-# --- 3. CORE CALCULATION (V18 - FULL PERFORMANCE TUNING LOGIC) ---
-def calculate_axis_v18(cc, bore, stroke, cr, rpm_limit, v_in, n_v_in, v_out, n_v_out, v_lift, venturi, dur_in, dur_out, afr, material, d_type, std):
+# --- 3. CORE CALCULATION (V19) ---
+def calculate_axis_v19(cc, bore, stroke, cr, rpm_limit, v_in, n_v_in, v_out, n_v_out, v_lift, venturi, dur_in, dur_out, afr, material, d_type, std):
     rpms = np.arange(1000, int(rpm_limit) + 100, 100)
     hps, torques = [], []
     
-    # Efek Durasi Noken As terhadap Peak RPM
     avg_dur = (float(dur_in) + float(dur_out)) / 2.0
     adj_peak_rpm = float(std['peak_rpm']) + ((avg_dur - 240.0) * 50.0)
     
-    # Drivetrain Loss (CVT vs Rantai)
     d_loss = 0.82 if d_type == "CVT" else 0.94
     afr_mod = 1.0 - abs(float(afr) - 12.8) * 0.05
     
-    # Diameter Klep Efektif
     eff_v_in = math.sqrt(n_v_in * (v_in**2))
     eff_v_out = math.sqrt(n_v_out * (v_out**2))
     
     bmep_base = (float(std['hp_std']) * 950000.0) / (float(std['bore']**2 * 0.785 * std['stroke']/1000) * float(std['peak_rpm']) * 0.85)
 
     for r in rpms:
-        # Kurva Volumetric Efficiency (VE)
         ve = math.exp(-((r - adj_peak_rpm) / 4800.0)**2) if r <= adj_peak_rpm else math.exp(-((r - adj_peak_rpm) / 2800.0)**2)
-        
-        # Kecepatan Fisik
         ps_speed = (2.0 * float(stroke) * float(r)) / 60000.0
         gs_in = ((float(bore) / eff_v_in)**2) * ps_speed
         gs_out = ((float(bore) / eff_v_out)**2) * ps_speed 
         
-        # Penalti Choke Flow & Piston Speed (Physics Limit)
         if gs_in > 115.0: ve *= (115.0 / gs_in)**2.2
         if gs_out > 110.0: ve *= (110.0 / gs_out)**1.8
         
         ps_limit = 27.5 if material == "Forged" else 21.0
         if ps_speed > ps_limit: ve *= (ps_limit / ps_speed)**2.5
         
-        # Kalkulasi Tenaga Akhir
         hp = (bmep_base * float(cc) * float(r) * ve * d_loss * afr_mod) / 950000.0
-        
-        # Manfaat Lift Klep (4-Stroke Tuning: Lift > 0.30 x Diameter Klep)
         if v_lift / v_in > 0.30: hp *= (1.0 + ((v_lift/v_in) - 0.30) * 0.1)
-        
-        # Penalti Kompresi Berlebihan
         if cr > 14.5: hp *= (1.0 - (cr - 14.5) * 0.15)
         
         hps.append(round(hp, 2))
@@ -118,7 +106,7 @@ st.title("📟 Hiar Lima Pendawa Tuning")
 
 if run_btn:
     cr_calc = (cc_calc + float(in_vhead)) / float(in_vhead)
-    rpms, hps, torques, pspeed, gsin, gsout = calculate_axis_v18(
+    rpms, hps, torques, pspeed, gsin, gsout = calculate_axis_v19(
         cc_calc, in_bore, in_stroke, cr_calc, in_rpm, in_v_in, in_n_v_in, 
         in_v_out, in_n_v_out, in_v_lift, 28.0, in_dur_in, in_dur_out, in_afr, in_material, in_d_type, std
     )
@@ -137,16 +125,16 @@ if run_btn:
 if st.session_state.history:
     latest = st.session_state.history[-1]
     
-    # --- METRICS ---
+    # --- METRICS (REPAIRED) ---
     st.header("🌪️ Flowbench & Physical Analysis")
     m1, m2, m3, m4, m5 = st.columns(5)
     with m1: st.metric("Gas Speed In", f"{latest['gsin']:.2f} m/s")
     with m2: st.metric("Gas Speed Out", f"{latest['gsout']:.2f} m/s")
     with m3: st.metric("Piston Speed", f"{latest['pspeed']:.2f} m/s")
     with m4: st.metric("Flow In (est)", f"{round((latest['v_in']/25.4)**2 * 146, 1)} CFM")
-    with m5: st.metric("CC Motor Real", f"{latest['CC']:.2f} cc")
+    with m5: st.metric("Flow Out (est)", f"{round((latest['v_out']/25.4)**2 * 146, 1)} CFM")
 
-    # --- GRAPH (GRID 1000 RPM) ---
+    # --- GRAPH ---
     fig = go.Figure()
     for r in st.session_state.history:
         fig.add_trace(go.Scatter(x=r['rpms'], y=r['hps'], name=f"{r['Run']} (HP)", line=dict(width=4)))
@@ -166,26 +154,26 @@ if st.session_state.history:
     st.write("### 🏁 Drag Simulation Predictions")
     st.dataframe(df[["Run", "T100", "T201", "T402", "T1000"]].rename(columns={"T100":"100m","T201":"201m","T402":"402m","T1000":"1000m"}), hide_index=True, use_container_width=True)
 
-    # --- EXPERT ADVICE (FULL RESTORED) ---
+    # --- EXPERT ADVICE ---
     st.divider()
     st.header("🏁 Axis Expert Physics Analysis")
     c1, c2 = st.columns(2)
     with c1:
         st.subheader("🧐 Analisa Kondisi Mesin")
-        if latest['gsin'] > 115: st.error(f"❌ **CHOKE FLOW:** Intake Velocity {latest['gsin']:.1f} m/s terlalu tinggi. Udara 'tercekik' di lubang klep.")
-        elif latest['gsin'] < 90: st.warning(f"⚠️ **LOW VELOCITY:** {latest['gsin']:.1f} m/s. Campuran bensin-udara tidak homogen. Torsi bawah loyo.")
-        else: st.success(f"✅ **IDEAL FLOW:** Velocity {latest['gsin']:.1f} m/s. Pengisian silinder sangat efisien.")
+        if latest['gsin'] > 115: st.error(f"❌ **CHOKE FLOW:** Intake Velocity {latest['gsin']:.1f} m/s terlalu tinggi.")
+        elif latest['gsin'] < 90: st.warning(f"⚠️ **LOW VELOCITY:** {latest['gsin']:.1f} m/s. Torsi bawah loyo.")
+        else: st.success(f"✅ **IDEAL FLOW:** Velocity {latest['gsin']:.1f} m/s. Sangat efisien.")
         
-        if latest['CR'] > 14.5: st.error(f"❌ **CRITICAL DETONATION:** Kompresi {latest['CR']:.1f}:1 akan menyebabkan knocking parah.")
-        if latest['pspeed'] > 21: st.warning(f"⚠️ **PISTON SPEED:** {latest['pspeed']:.1f} m/s mendekati batas material casting.")
+        if latest['CR'] > 14.5: st.error(f"❌ **CRITICAL DETONATION:** Kompresi {latest['CR']:.1f}:1 resiko knocking.")
+        if latest['pspeed'] > 21: st.warning(f"⚠️ **PISTON SPEED:** {latest['pspeed']:.1f} m/s mendekati batas aman.")
 
     with c2:
         st.subheader("💡 Saran Ahli & Solusi")
-        st.info(f"📍 **Target Vol Head:** Idealnya {latest['CC'] / 12.5:.2f}cc untuk mengejar kompresi dinamis yang aman.")
-        st.warning(f"📍 **Knalpot:** Gunakan diameter leher {round(math.sqrt(latest['CC'] * 0.16) * 10, 1)}mm untuk scavenging optimal.")
+        st.info(f"📍 **Target Vol Head:** Idealnya {latest['CC'] / 12.5:.2f}cc.")
+        st.warning(f"📍 **Knalpot:** Diameter leher {round(math.sqrt(latest['CC'] * 0.16) * 10, 1)}mm.")
         
-        solusi = f"Perbesar Klep In ke {round(latest['bore']*0.53, 1)}mm untuk menurunkan velocity." if latest['gsin'] > 108 else "Fokus pada optimalisasi porting area bowl dan derajat kemiringan valve seat."
+        solusi = f"Perbesar Klep In ke {round(latest['bore']*0.53, 1)}mm." if latest['gsin'] > 108 else "Optimalkan profil porting dan noken as."
         st.success(f"📍 **Solusi Utama:** {solusi}")
 
 st.write("---")
-st.error("⚠️ **DISCLAIMER:** Batas fisik (Choke Flow & Piston Speed) diterapkan secara ketat sesuai prinsip Internal Combustion Engine.")
+st.error("⚠️ **DISCLAIMER:** Batas fisik (Choke Flow & Piston Speed) diterapkan sesuai standar mesin 4 tak.")
