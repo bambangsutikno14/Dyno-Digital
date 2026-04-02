@@ -139,15 +139,15 @@ if run_btn:
 if st.session_state.history:
     latest = st.session_state.history[-1]
     
-    # --- LOGIKA WARNA TABEL (DYNAMIC CSS) ---
+    # --- LOGIKA WARNA TABEL ---
     def style_performance_table(row):
         idx = row.name
         full_row = df.loc[idx] 
-        color = 'color: #00BFFF;' # Biru (Aman/Standar)
+        color = 'color: #00BFFF;'
         if 100 <= full_row['gsin'] <= 112 and full_row['pspeed'] <= 20 and 11.5 <= full_row['CR'] <= 13.0:
-            color = 'color: #00FF00;' # Hijau (Optimal)
+            color = 'color: #00FF00;'
         if full_row['gsin'] > 115 or full_row['pspeed'] > 21 or full_row['CR'] > 13.5:
-            color = 'color: #FF4B4B;' # Merah (Berisiko)
+            color = 'color: #FF4B4B;'
         return [color] * len(row)
 
     st.header("🌪️ Flowbench & Physical Analysis")
@@ -158,21 +158,15 @@ if st.session_state.history:
     with m4: st.metric("Flow In (est)", f"{round((latest['v_in']/25.4)**2 * 146, 1)} CFM")
     with m5: st.metric("Flow Out (est)", f"{round((latest['v_out']/25.4)**2 * 146, 1)} CFM")
 
-    # --- GRAFIK ---
+    # --- GRAFIK & TABLES ---
     fig = go.Figure()
-    colors = ["rgba(255, 0, 0, 1)", "rgba(0, 255, 0, 1)", "rgba(0, 0, 255, 1)", "rgba(255, 255, 0, 1)", "rgba(255, 0, 255, 1)", "rgba(0, 255, 255, 1)"]
-    bg_colors = [c.replace("1)", "0.4)") for c in colors]
+    colors = ["rgba(255, 0, 0, 1)", "rgba(0, 255, 0, 1)", "rgba(0, 0, 255, 1)"]
     for i, r in enumerate(st.session_state.history):
-        color, bg_color = colors[i % len(colors)], bg_colors[i % len(bg_colors)]
-        fig.add_trace(go.Scatter(x=r['rpms'], y=r['hps'], name=f"{r['Run']} (HP)", line=dict(color=color, width=3)))
-        fig.add_trace(go.Scatter(x=r['rpms'], y=r['torques'], name=f"{r['Run']} (Nm)", line=dict(color=color, width=2, dash='dot'), yaxis="y2"))
-        idx_hp, idx_nm = np.argmax(r['hps']), np.argmax(r['torques'])
-        fig.add_annotation(x=r['rpms'][idx_hp], y=r['hps'][idx_hp], text=f"Peak: {r['hps'][idx_hp]}HP@{r['rpms'][idx_hp]}", showarrow=True, arrowhead=1, bgcolor=bg_color, font=dict(color="white", size=11))
-        fig.add_annotation(x=r['rpms'][idx_nm], y=r['torques'][idx_nm], text=f"Peak: {r['torques'][idx_nm]}Nm@{r['rpms'][idx_nm]}", showarrow=True, arrowhead=1, bgcolor=bg_color, font=dict(color="white", size=11), yref="y2")
-    fig.update_layout(template="plotly_dark", height=600, showlegend=False, xaxis=dict(title="Engine RPM", dtick=1000), yaxis=dict(title="Power (HP)"), yaxis2=dict(overlaying="y", side="right", title="Torque (Nm)"))
+        fig.add_trace(go.Scatter(x=r['rpms'], y=r['hps'], name=f"{r['Run']} (HP)"))
+        fig.add_trace(go.Scatter(x=r['rpms'], y=r['torques'], name=f"{r['Run']} (Nm)", yaxis="y2", line=dict(dash='dot')))
+    fig.update_layout(template="plotly_dark", height=500, yaxis2=dict(overlaying="y", side="right"))
     st.plotly_chart(fig, use_container_width=True)
     
-    # --- TABLES ---
     df = pd.DataFrame(st.session_state.history)
     st.write("### 📊 Performance Dyno Result")
     styled_df = df[["Run", "CC", "CR", "AFR", "Max_HP", "RPM_HP", "Max_Nm", "RPM_Nm"]].style.apply(style_performance_table, axis=1).format({
@@ -180,65 +174,61 @@ if st.session_state.history:
     })
     st.dataframe(styled_df, hide_index=True, use_container_width=True)
 
-    st.write("### 🏁 Drag Simulation Predictions")
-    df_drag = df[["Run", "T100", "T201", "T402", "T1000"]].rename(columns={"T100":"100m","T201":"201m","T402":"402m","T1000":"1000m"})
-    st.dataframe(df_drag.style.format({"100m": "{:.2f}s", "201m": "{:.2f}s", "402m": "{:.2f}s", "1000m": "{:.2f}s"}), hide_index=True, use_container_width=True)
-
-    # --- ANALISA DINAMIS TINGKAT TINGGI (DIPERBARUI) ---
+    # --- 🏁 AXIS EXPERT PHYSICS ANALYSIS (DYNAMIZED) ---
     st.divider()
     st.header(f"🏁 Axis Expert Physics Analysis: {latest['model']}")
     
-    # Hitung Perbandingan dengan Standar
-    std_cc = (0.785398 * latest['std_data']['bore']**2 * latest['std_data']['stroke']) / 1000.0
-    cc_increase_pct = ((latest['CC'] - std_cc) / std_cc) * 100
+    # Perhitungan Rasio & Selisih untuk variasi jawaban
     bore_stroke_ratio = latest['bore'] / latest['stroke']
     lift_valve_ratio = latest['lift'] / latest['v_in']
+    diff_cc = latest['CC'] - (0.785398 * latest['std_data']['bore']**2 * latest['std_data']['stroke'] / 1000)
     
-    # 1. Analisa Performa
-    analisa_teks = f"• Kapasitas mesin saat ini: **{latest['CC']:.1f}cc** "
-    if cc_increase_pct > 1: analisa_teks += f"(Naik **{cc_increase_pct:.1f}%** dari pabrikan). \n"
-    else: analisa_teks += "(Masih standar pabrikan). \n"
-    
-    if bore_stroke_ratio > 1.1: analisa_teks += f"• Karakter mesin **Overbore** (Rasio {bore_stroke_ratio:.2f}). Mesin ini mengorbankan putaran bawah demi nafas atas yang panjang dan sanggup berkitir di RPM sangat tinggi.\n"
-    elif bore_stroke_ratio < 0.9: analisa_teks += f"• Karakter mesin **Long-Stroke** (Rasio {bore_stroke_ratio:.2f}). Mengandalkan torsi instan sejak RPM rendah, sangat responsif di perkotaan/stop & go.\n"
-    else: analisa_teks += f"• Karakter mesin **Square/Near-Square**. Output tenaga tersebar sangat merata dari putaran bawah hingga atas.\n"
-    
-    if latest['gsin'] < 90: analisa_teks += f"• ⚠️ **Weak Scavenging:** Kecepatan aliran gas lambat ({latest['gsin']:.1f} m/s). Motor akan terasa *ngempos* saat stop-n-go."
-    elif 90 <= latest['gsin'] <= 112: analisa_teks += f"• ✅ **Ideal Velocity:** Kecepatan gas sangat efisien di {latest['gsin']:.1f} m/s. Pengisian silinder optimal tanpa hambatan."
-    else: analisa_teks += f"• 🛑 **Sonic Choke:** Kecepatan ({latest['gsin']:.1f} m/s) terlalu tinggi. Udara akan menabrak dinding *porting* dan tenaga putaran atas akan tertahan."
-
-    # 2. Rekomendasi Ahli (Graham Bell)
-    bell_teks = ""
-    if lift_valve_ratio < 0.25:
-        bell_teks += f"📖 **Valve Lift Theory:** Menurut A. Graham Bell, rasio angkatan klep idealnya 0.25 - 0.30 dari diameter klep. Rasio Anda terlalu rendah (**{lift_valve_ratio:.2f}**). Mesin gagal bernafas maksimal, kurva HP akan tertahan.\n\n"
-    elif lift_valve_ratio > 0.32:
-        bell_teks += f"📖 **Valve Stress:** Rasio lift Anda (**{lift_valve_ratio:.2f}**) sangat ekstrem melebihi standar Bell (Max 0.30). Flow memang besar, namun berisiko *Valve Floating* di RPM tinggi jika per klep tidak diganti tipe *Racing*.\n\n"
+    # 1. ANALISA PERFORMA (Bagian ini sekarang mendeteksi angka spesifik)
+    analisa_list = []
+    if latest['gsin'] < 95:
+        analisa_list.append(f"• **Weak Scavenging ({latest['gsin']:.1f} m/s):** Kecepatan aliran udara pada intake terlalu rendah untuk diameter klep {latest['v_in']}mm. Hal ini menyebabkan efek vakum melemah sehingga silinder tidak terisi penuh pada RPM rendah.")
+    elif 95 <= latest['gsin'] <= 112:
+        analisa_list.append(f"• **Optimized Velocity ({latest['gsin']:.1f} m/s):** Aliran gas sangat ideal. Efek inersia udara akan membantu pengisian silinder secara maksimal (*Ram Effect*) pada rentang powerband.")
     else:
-        bell_teks += f"📖 **Curtain Area:** Rasio lift Anda (**{lift_valve_ratio:.2f}**) berada di *Sweet Spot* Graham Bell (0.25-0.30). Geometri area bukaan klep sangat sempurna.\n\n"
+        analisa_list.append(f"• **Sonic Choke Risk ({latest['gsin']:.1f} m/s):** Aliran gas terlalu cepat. Pada kecepatan ini, udara mengalami turbulensi hebat di area porting, menyebabkan tenaga 'flat' di putaran atas.")
 
-    if latest['CR'] > 13.0: bell_teks += f"🔥 **Detonation Risk:** Bell memperingatkan bahwa rasio kompresi tinggi (**{latest['CR']:.1f}:1**) wajib menggunakan bahan bakar oktan tinggi (>98) dan ubahan *Squish Band* agar terhindar dari *Engine Knocking* (Ngelitik)."
-    else: bell_teks += f"🛡️ **Thermal Efficiency:** Rasio kompresi dinamis (**{latest['CR']:.1f}:1**) masih dalam batas toleransi aman untuk durabilitas jalan raya menurut teori pembakaran internal."
+    if bore_stroke_ratio > 1.05:
+        analisa_list.append(f"• **Overbore Characteristic:** Rasio {bore_stroke_ratio:.2f} menunjukkan mesin ini haus RPM tinggi. Nafas mesin akan panjang namun butuh kompresi dinamis yang tepat agar tidak lelet di bawah.")
+    elif bore_stroke_ratio < 0.95:
+        analisa_list.append(f"• **Long-Stroke Characteristic:** Rasio {bore_stroke_ratio:.2f} memfokuskan energi pada torsi. Piston speed {latest['pspeed']:.1f} m/s menjadi limitasi utama durabilitas.")
 
-    # 3. Solusi Part
-    parts = []
-    if cc_increase_pct > 10: parts.append(f"⚙️ **Fuel System:** Karena CC naik {cc_increase_pct:.1f}%, wajib ganti/reamer Injector atau Pilot/Main Jet karbu untuk mencegah keausan piston akibat *Lean Mixture*.")
-    if latest['v_in'] > latest['std_data']['valve_in']: parts.append(f"⚙️ **Throttle Body/Karbu:** Klep sudah di-upgrade ({latest['v_in']}mm). Wajib pakai TB/Venturi minimal **{latest['v_in'] * 1.15:.1f}mm** agar aliran udara tidak tercekik di ujung luar.")
-    if latest['pspeed'] > 19: parts.append(f"⚙️ **Kruk As & Stang:** Piston speed menembus {latest['pspeed']:.1f} m/s (Limit harian 18 m/s). Wajib aplikasi *Forged Conrod* dan *Balancing Kruk As* ulang.")
-    if latest['gsin'] < 90: parts.append("⚙️ **Intake Manifold:** Gunakan leher angsa lebih kecil/panjang untuk memadatkan tekanan udara (*Velocity*).")
-    if latest['gsin'] > 112: parts.append("⚙️ **Porting & Polish:** Wajib melebarkan jalur in/ex, terutama mengeruk area *Bowl* di bawah *seating* klep.")
-    if len(parts) == 0: parts.append("⚙️ **Transmisi CVT:** Mesin dalam kondisi prima/standar. Fokus tingkatkan akselerasi lewat custom sudut Pulley, Roller lebih ringan, dan Per CVT 1000-1500 RPM.")
+    # 2. REKOMENDASI AHLI (GRAHAM BELL)
+    bell_recom = []
+    if lift_valve_ratio < 0.25:
+        bell_recom.append(f"📖 **Lifting Theory:** Graham Bell menyarankan lift minimal 25% dari diameter klep. Konfigurasi Anda ({lift_valve_ratio*100:.1f}%) membatasi potensi aliran. Noken as perlu *re-profiling*.")
+    elif 0.25 <= lift_valve_ratio <= 0.31:
+        bell_recom.append(f"📖 **Curtain Area:** Angka {lift_valve_ratio*100:.1f}% adalah rasio emas. Luas area tirai klep saat terbuka penuh sejajar dengan efisiensi porting.")
+    
+    if latest['CR'] > 12.5:
+        bell_recom.append(f"🔥 **Detonation Alert:** Pada kompresi {latest['CR']:.1f}:1, efisiensi termal naik tajam namun menuntut timing pengapian yang sangat presisi untuk menghindari *pre-ignition*.")
 
-    # Render Kolom
-    c1, c2, c3 = st.columns(3)
-    with c1:
+    # 3. SOLUSI & REKOMENDASI PART (Dinamis berdasarkan masalah)
+    part_solusi = []
+    if latest['gsin'] < 95:
+        part_solusi.append(f"⚙️ **Intake System:** Gunakan intake manifold dengan diameter dalam lebih kecil (misal: Downdraft custom) untuk meningkatkan *velocity* menjadi di atas 100 m/s.")
+    if diff_cc > 20:
+        part_solusi.append(f"⚙️ **Fueling:** Kenaikan kapasitas mesin signifikan. Wajib upgrade Injector ke spek {(latest['CC']/latest['std_data']['hp_std'])*2:.0f} cc/min atau sesuaikan ukuran Main Jet.")
+    if latest['pspeed'] > 19:
+        part_solusi.append(f"⚙️ **Bottom End:** Piston speed {latest['pspeed']:.1f} m/s sangat tinggi. Gunakan stang seher *Forged* dan pastikan *bearing* kruk as spek kompetisi.")
+    if not part_solusi:
+        part_solusi.append("✅ **Stability:** Spek saat ini sangat balance untuk penggunaan harian performa tinggi. Fokus pada sektor transmisi (CVT/Final Gear).")
+
+    # Layouting Box Analysis
+    col1, col2, col3 = st.columns(3)
+    with col1:
         st.subheader("📊 Analisa Performa")
-        st.info(analisa_teks)
-    with c2:
+        st.info("\n".join(analisa_list))
+    with col2:
         st.subheader("📚 Analisa Ahli (Graham Bell)")
-        st.warning(bell_teks)
-    with c3:
+        st.warning("\n".join(bell_recom))
+    with col3:
         st.subheader("🛠️ Solusi & Rekomendasi Part")
-        for p in parts:
+        for p in part_solusi:
             st.success(p)
 
 st.write("---")
