@@ -146,14 +146,21 @@ if st.session_state.history:
                       yaxis2=dict(overlaying="y", side="right", title="Nm"))
     st.plotly_chart(fig, use_container_width=True)
 
-    # --- TABLES ---
-    st.write("### 📊 Dyno Comparison Ledger")
+    # --- TABLES WITH 2 DECIMAL PLACES ---
     df = pd.DataFrame(st.session_state.history)
-    st.dataframe(df[["Run", "CC", "CR", "AFR", "Max_HP", "RPM_HP", "Max_Nm", "RPM_Nm"]], hide_index=True, use_container_width=True)
+    
+    st.write("### 📊 Dyno Comparison Ledger")
+    df_dyno = df[["Run", "CC", "CR", "AFR", "Max_HP", "RPM_HP", "Max_Nm", "RPM_Nm"]].copy()
+    st.dataframe(df_dyno.style.format({
+        "CC": "{:.2f}", "CR": "{:.2f}", "AFR": "{:.2f}", "Max_HP": "{:.2f}", "Max_Nm": "{:.2f}"
+    }), hide_index=True, use_container_width=True)
 
     st.write("### 🏁 Drag Simulation Predictions")
-    st.dataframe(df[["Run", "T100", "T201", "T402", "T1000"]].rename(columns={"T100":"100m","T201":"201m","T402":"402m","T1000":"1000m"}), hide_index=True, use_container_width=True)
-
+    df_drag = df[["Run", "T100", "T201", "T402", "T1000"]].rename(columns={"T100":"100m","T201":"201m","T402":"402m","T1000":"1000m"})
+    st.dataframe(df_drag.style.format({
+        "100m": "{:.2f}", "201m": "{:.2f}", "402m": "{:.2f}", "1000m": "{:.2f}"
+    }), hide_index=True, use_container_width=True)
+    
     # --- EXPERT ADVICE ---
     st.divider()
     st.header("🏁 Axis Expert Physics Analysis")
