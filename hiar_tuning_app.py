@@ -16,7 +16,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# --- 2. DATABASE PABRIKAN (FOCUS: MATIC ONLY) ---
+# --- 2. DATABASE PABRIKAN (MATIC ONLY) ---
 DATABASE_REF = {
     "YAMAHA (MATIC)": {
         "Karbu": {
@@ -146,9 +146,10 @@ st.title("📟 Hiar Lima Pendawa Tuning")
 
 if run_btn:
     cr_calc = (cc_calc + float(in_vhead)) / float(in_vhead)
+    # PERBAIKAN: Mengganti dur_out menjadi in_dur_out agar variabel terdefinisi
     rpms, hps, torques, pspeed, gsin, gsout = calculate_axis_v22(
         cc_calc, in_bore, in_stroke, cr_calc, in_rpm, in_v_in, in_n_v_in, 
-        in_v_out, in_n_v_out, in_v_lift, in_venturi, in_dur_in, dur_out, in_afr, in_material, in_d_type, std
+        in_v_out, in_n_v_out, in_v_lift, in_venturi, in_dur_in, in_dur_out, in_afr, in_material, in_d_type, std
     )
     
     hp_max = max(hps)
@@ -187,10 +188,8 @@ if st.session_state.history:
         fig.add_trace(go.Scatter(x=r['rpms'], y=r['hps'], name=f"{r['Run']} (HP)", line=dict(color=color, width=3)))
         fig.add_trace(go.Scatter(x=r['rpms'], y=r['torques'], name=f"{r['Run']} (Nm)", line=dict(color=color, width=2, dash='dot'), yaxis="y2"))
 
-        # Label di belakang ujung garis
         fig.add_annotation(x=r['rpms'][-1], y=r['hps'][-1], text=r['Run'], showarrow=False, xanchor="left", font=dict(color=color, size=10))
 
-        # Peak Markers (Tulisan Putih, BG Transparan 0.4)
         idx_hp = np.argmax(r['hps'])
         idx_nm = np.argmax(r['torques'])
         
