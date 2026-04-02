@@ -142,30 +142,15 @@ if st.session_state.history:
 
     fig = go.Figure()
     for r in st.session_state.history:
-        fig.add_trace(go.Scatter(x=r['rpms'], y=r['hps'], name=f"{r['Run']} (HP)", line=dict(width=4)))
+        fig.add_trace(go.Scatter(x=r['rpms'], y=r['hps'], name=f"{r['Run']} (HP)", line=dict(width=3)))
         fig.add_trace(go.Scatter(x=r['rpms'], y=r['torques'], name=f"{r['Run']} (Nm)", line=dict(dash='dot'), yaxis="y2"))
-        
-        # LABEL PEAK HP
-        fig.add_trace(go.Scatter(
-            x=[r['RPM_HP']], y=[r['Max_HP']], mode='markers+text',
-            text=[f"Peak: {r['Max_HP']:.2f} HP @ {r['RPM_HP']} RPM"],
-            textposition="top center", marker=dict(size=12, symbol='star', color='yellow'), showlegend=False
-        ))
-        
-        # LABEL PEAK Nm
-        fig.add_trace(go.Scatter(
-            x=[r['RPM_Nm']], y=[r['Max_Nm']], mode='markers+text',
-            text=[f"Peak: {r['Max_Nm']:.2f} Nm @ {r['RPM_Nm']} RPM"],
-            textposition="bottom center", marker=dict(size=12, symbol='star', color='cyan'),
-            yaxis="y2", showlegend=False
-        ))
 
-    fig.update_layout(template="plotly_dark", height=550,
-                      xaxis=dict(title="RPM", showgrid=True, gridcolor="#333", dtick=1000), 
-                      yaxis=dict(title="HP", showgrid=True, gridcolor="#333"),
+    fig.update_layout(template="plotly_dark", height=500,
+                      xaxis=dict(title="RPM", showgrid=True, gridcolor="#444", dtick=1000), # GRID AKTIF
+                      yaxis=dict(title="HP", showgrid=True, gridcolor="#444"),
                       yaxis2=dict(overlaying="y", side="right", title="Nm"))
     st.plotly_chart(fig, use_container_width=True)
-
+    
     df = pd.DataFrame(st.session_state.history)
     st.write("### 📊 Performance Dyno Result")
     st.dataframe(df[["Run", "CC", "CR", "AFR", "Max_HP", "RPM_HP", "Max_Nm", "RPM_Nm"]].style.format({
