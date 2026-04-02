@@ -30,7 +30,7 @@ DATABASE_REF = {
 if 'history' not in st.session_state:
     st.session_state.history = []
 
-# --- 3. CORE CALCULATION (V22 - FRICTION & SHARP DROP LOGIC) ---
+# --- 3. CORE CALCULATION (TIDAK ADA PERUBAHAN LOGIKA) ---
 def calculate_axis_v22(cc, bore, stroke, cr, rpm_limit, v_in, n_v_in, v_out, n_v_out, v_lift, venturi, dur_in, dur_out, afr, material, d_type, std):
     rpms = np.arange(1000, int(rpm_limit) + 100, 100)
     hps, torques = [], []
@@ -47,24 +47,18 @@ def calculate_axis_v22(cc, bore, stroke, cr, rpm_limit, v_in, n_v_in, v_out, n_v
     bmep_base = (float(std['hp_std']) * 950000.0) / (float(std['bore']**2 * 0.785 * std['stroke']/1000) * float(std['peak_rpm']) * 0.85)
 
     for r in rpms:
-        # 1. VE Drop-off (Dibuat lebih curam/agresif: 1200)
         ve = math.exp(-((r - adj_peak_rpm) / 4800.0)**2) if r <= adj_peak_rpm else math.exp(-((r - adj_peak_rpm) / 1200.0)**2)
-        
-        # 2. Gas Speed Analysis
         ps_speed = (2.0 * float(stroke) * float(r)) / 60000.0
         gs_in = ((float(bore) / eff_v_in)**2) * ps_speed
         gs_out = ((float(bore) / eff_v_out)**2) * ps_speed 
         
-        if gs_in > 115.0: ve *= (115.0 / gs_in)**2.5 # Penalti gas speed lebih ketat
+        if gs_in > 115.0: ve *= (115.0 / gs_in)**2.5 
         if gs_out > 110.0: ve *= (110.0 / gs_out)**2.0
         
-        # 3. Mechanical Friction Loss (Kunci agar grafik turun setelah peak)
-        # Semakin tinggi RPM, gesekan mesin memakan tenaga secara eksponensial
         friction_loss = (r / 15000.0)**2 
         
-        # 4. Final HP Calculation
         hp = (bmep_base * float(cc) * float(r) * ve * d_loss * afr_mod) / 950000.0
-        hp *= (1.0 - friction_loss) # Menerapkan kerugian gesek
+        hp *= (1.0 - friction_loss) 
         
         if v_lift / v_in > 0.30: hp *= (1.0 + ((v_lift/v_in) - 0.30) * 0.1)
         if cr > 14.5: hp *= (1.0 - (cr - 14.5) * 0.15)
@@ -96,6 +90,8 @@ with st.sidebar:
         in_n_v_in = st.selectbox("Jml Klep In", [1, 2], index=1 if std['valves']==4 else 0)
         in_v_out = st.number_input(f"Klep Out (std: {std['valve_out']})", value=float(std['valve_out']), step=0.1)
         in_n_v_out = st.selectbox("Jml Klep Out", [1, 2], index=1 if std['valves']==4 else 0)
+        # --- UPDATE 3: PENAMBAHAN VENTURI ---
+        in_venturi = st.number_input(f"Venturi (std: {std['venturi']})", value=float(std['venturi']), step=0.1)
         in_v_lift = st.number_input("Lift (mm)", value=8.5, step=0.1)
         in_dur_in = st.slider("Durasi In", 200, 320, 275)
         in_dur_out = st.slider("Durasi Out", 200, 320, 270)
@@ -113,9 +109,10 @@ st.title("📟 Hiar Lima Pendawa Tuning")
 
 if run_btn:
     cr_calc = (cc_calc + float(in_vhead)) / float(in_vhead)
+    # in_venturi dimasukkan ke parameter venturi fungsi
     rpms, hps, torques, pspeed, gsin, gsout = calculate_axis_v22(
         cc_calc, in_bore, in_stroke, cr_calc, in_rpm, in_v_in, in_n_v_in, 
-        in_v_out, in_n_v_out, in_v_lift, 28.0, in_dur_in, in_dur_out, in_afr, in_material, in_d_type, std
+        in_v_out, in_n_v_out, in_v_lift, in_venturi, in_dur_in, in_dur_out, in_afr, in_material, in_d_type, std
     )
     
     hp_max = max(hps)
@@ -140,15 +137,80 @@ if st.session_state.history:
     with m4: st.metric("Flow In (est)", f"{round((latest['v_in']/25.4)**2 * 146, 1)} CFM")
     with m5: st.metric("Flow Out (est)", f"{round((latest['v_out']/25.4)**2 * 146, 1)} CFM")
 
+    # --- UPDATE 1 & 2: GRAFIK MODEL DYNOTES AXIS VX5 + MARKER ---
     fig = go.Figure()
-    for r in st.session_state.history:
-        fig.add_trace(go.Scatter(x=r['rpms'], y=r['hps'], name=f"{r['Run']} (HP)", line=dict(width=3)))
-        fig.add_trace(go.Scatter(x=r['rpms'], y=r['torques'], name=f"{r['Run']} (Nm)", line=dict(dash='dot'), yaxis="y2"))
+    
+    colors_hp = ["#00BFFF", "#1E90FF", "#87CEFA"] # Gradasi Biru
+    colors_nm = ["#FF4500", "#FF6347", "#FF7F50"] # Gradasi Merah/Oranye
 
-    fig.update_layout(template="plotly_dark", height=500,
-                      xaxis=dict(title="RPM", showgrid=True, gridcolor="#444", dtick=1000), # GRID SETIAP 1000
-                      yaxis=dict(title="Horsepower (HP)", showgrid=True, gridcolor="#444"),
-                      yaxis2=dict(overlaying="y", side="right", title="Torque (Nm)"))
+    for i, r in enumerate(st.session_state.history):
+        c_hp = colors_hp[i % len(colors_hp)]
+        c_nm = colors_nm[i % len(colors_nm)]
+        
+        # Garis HP
+        fig.add_trace(go.Scatter(
+            x=r['rpms'], y=r['hps'], 
+            name=f"{r['Run']} (HP)", 
+            line=dict(color=c_hp, width=4)
+        ))
+        
+        # Garis Torque
+        fig.add_trace(go.Scatter(
+            x=r['rpms'], y=r['torques'], 
+            name=f"{r['Run']} (Nm)", 
+            line=dict(color=c_nm, width=3, dash='dashdot'), 
+            yaxis="y2"
+        ))
+
+        # Tambahkan Titik Puncak (Markers)
+        idx_hp = np.argmax(r['hps'])
+        idx_nm = np.argmax(r['torques'])
+        
+        # Marker Peak HP
+        fig.add_annotation(
+            x=r['rpms'][idx_hp], y=r['hps'][idx_hp],
+            text=f"<b>{r['hps'][idx_hp]} HP</b><br>@{r['rpms'][idx_hp]}",
+            showarrow=True, arrowhead=2, arrowcolor=c_hp,
+            font=dict(color=c_hp, size=12), bgcolor="rgba(0,0,0,0.6)",
+            ax=0, ay=-40
+        )
+        
+        # Marker Peak Torque
+        fig.add_annotation(
+            x=r['rpms'][idx_nm], y=r['torques'][idx_nm],
+            text=f"<b>{r['torques'][idx_nm]} Nm</b><br>@{r['rpms'][idx_nm]}",
+            showarrow=True, arrowhead=2, arrowcolor=c_nm,
+            font=dict(color=c_nm, size=12), bgcolor="rgba(0,0,0,0.6)",
+            ax=0, ay=40, yref="y2"
+        )
+
+    fig.update_layout(
+        template="plotly_dark", 
+        height=600,
+        paper_bgcolor='rgba(0,0,0,0)',
+        plot_bgcolor='rgba(10,10,10,1)',
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+        xaxis=dict(
+            title="ENGINE SPEED (RPM)", 
+            showgrid=True, gridcolor="#333", 
+            dtick=1000, range=[1000, latest['rpms'][-1]+500],
+            linecolor="#666", mirror=True
+        ),
+        yaxis=dict(
+            title="POWER (HP)", 
+            showgrid=True, gridcolor="#333", 
+            linecolor=colors_hp[0], color=colors_hp[0],
+            zeroline=False
+        ),
+        yaxis2=dict(
+            overlaying="y", side="right", 
+            title="TORQUE (Nm)", 
+            showgrid=False,
+            linecolor=colors_nm[0], color=colors_nm[0],
+            zeroline=False
+        )
+    )
+    
     st.plotly_chart(fig, use_container_width=True)
     
     df = pd.DataFrame(st.session_state.history)
@@ -184,4 +246,4 @@ if st.session_state.history:
         st.success(f"📍 **Solusi Utama:** {solusi}")
 
 st.write("---")
-st.error("⚠️ **DISCLAIMER:** Batas fisik (Choke Flow & Friction) diterapkan secara ketat.")
+st.error("⚠️ **DISCLAIMER:** Hasil perhitungan adalah perkiraan kalkulasi secara data, kondisi real mungkin sedikit berbeda.")
