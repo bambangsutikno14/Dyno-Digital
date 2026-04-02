@@ -242,4 +242,4 @@ if st.session_state.history:
             st.success(p)
 
 st.write("---")
-st.caption("⚠️ **DISCLAIMER:** Simulasi hasil perhitungan hanya kalkulasi dari input spesifikasi, kenyataan di lapangan mungkin berbeda sesuai setingan mekanik. GassPoll. | *Warna Tabel: 🔵 Biru (Batas Aman) | 🟢 Hijau (Optimal) | 🔴 Merah (Risiko)*")
+st.caption("⚠️ **DISCLAIMER:** Simulasi hasil perhitungan hanya kalkulasi dari input spesifikasi, kenyataan di lapangan mungkin berbeda sesuai setingan mekanik. GassPoll.")
