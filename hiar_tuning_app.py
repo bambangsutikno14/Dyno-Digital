@@ -225,10 +225,7 @@ if st.session_state.history:
     with c1:
         st.subheader("🧐 1. Analisa Spek Mesin")
         st.markdown(f"- **Kapasitas Nyata:** Berada di angka **{latest['CC']:.2f} cc** dengan kompresi statis terukur **{latest['CR']:.2f}:1**.")
-        st.markdown(f"- **Kecepatan Piston:** Pada limiter, piston bergerak secepat **{latest['pspeed']:.2f} m/s**.")
-        st.markdown(f"- **Kecepatan Gas (Gas Speed):** Aliran campuran bahan bakar masuk di kecepatan **{latest['gsin']:.2f} m/s** dan gas buang keluar di **{latest['gsout']:.2f} m/s**.")
         st.markdown(f"- **Efisiensi Klep:** Rasio lift terhadap diameter klep in berada pada persentase **{(lift_ratio * 100):.1f}%** ({lift_ratio:.3f}).")
-        st.markdown(f"- **Rasio Udara (AFR):** Settingan bahan bakar di angka **{latest['AFR']:.2f}**.")
 
     with c2:
         st.subheader("📚 2. Saran Ahli (Teori)")
