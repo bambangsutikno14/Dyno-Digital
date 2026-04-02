@@ -32,14 +32,10 @@ DATABASE_REF = {
     "HONDA (MATIC)": {
         "Karbu": {
             "110cc": {
-                "Beat 110 Karbu": {"bore": 50.0, "stroke": 55.0, "v_head": 11.8, "valve_in": 25.5, "valve_out": 21.0, "venturi": 22.0, "hp_std": 8.22, "peak_rpm": 8000, "limit_std": 9000, "weight_std": 89.0, "valves": 2, "lift_std": 7.0, "dur_std": 230},
-                "Vario 110 Karbu": {"bore": 50.0, "stroke": 55.0, "v_head": 11.5, "valve_in": 25.5, "valve_out": 21.0, "venturi": 24.0, "hp_std": 8.99, "peak_rpm": 8000, "limit_std": 9000, "weight_std": 99.0, "valves": 2, "lift_std": 7.2, "dur_std": 230}
+                "Beat 110 Karbu": {"bore": 50.0, "stroke": 55.0, "v_head": 11.8, "valve_in": 25.5, "valve_out": 21.0, "venturi": 22.0, "hp_std": 8.22, "peak_rpm": 8000, "limit_std": 9000, "weight_std": 89.0, "valves": 2, "lift_std": 7.0, "dur_std": 230}
             }
         },
         "Injeksi": {
-            "110cc": {"Beat 110 FI (eSP)": {"bore": 50.0, "stroke": 55.1, "v_head": 12.0, "valve_in": 25.5, "valve_out": 21.0, "venturi": 22.0, "hp_std": 8.68, "peak_rpm": 7500, "limit_std": 9300, "weight_std": 93.0, "valves": 2, "lift_std": 7.2, "dur_std": 232}},
-            "125cc": {"Vario 125 eSP": {"bore": 52.4, "stroke": 57.9, "v_head": 14.2, "valve_in": 25.5, "valve_out": 21.0, "venturi": 24.0, "hp_std": 11.1, "peak_rpm": 8500, "limit_std": 9500, "weight_std": 111.0, "valves": 2, "lift_std": 7.8, "dur_std": 235}},
-            "150cc": {"Vario 150 / PCX 150": {"bore": 57.3, "stroke": 57.9, "v_head": 15.6, "valve_in": 29.0, "valve_out": 23.0, "venturi": 26.0, "hp_std": 12.92, "peak_rpm": 8500, "limit_std": 9800, "weight_std": 109.0, "valves": 2, "lift_std": 8.0, "dur_std": 235}},
             "160cc": {"Vario 160 / PCX 160": {"bore": 60.0, "stroke": 55.5, "v_head": 12.8, "valve_in": 23.0, "valve_out": 19.5, "venturi": 28.0, "hp_std": 15.4, "peak_rpm": 8500, "limit_std": 10000, "weight_std": 115.0, "valves": 4, "lift_std": 8.5, "dur_std": 245}}
         }
     }
@@ -86,34 +82,33 @@ with st.sidebar:
     std = DATABASE_REF[sel_merk][sel_sys][sel_cc][sel_model]
     
     st.header("2️⃣ ENGINE SIMULATION")
-    with st.expander("🛠️ Perimeter 1 (Standar)", expanded=True):
+    with st.expander("🛠️ Perimeter 1", expanded=True):
         raw_label = st.text_input("Label Run", value=f"Run {len(st.session_state.history)+1}")
         full_label = f"{raw_label} {sel_model.split(' ')[0]}" 
-        in_bore = st.number_input(f"Bore (std: {std['bore']})", value=float(std['bore']), step=0.1)
-        in_stroke = st.number_input(f"Stroke (std: {std['stroke']})", value=float(std['stroke']), step=0.1)
-        in_vhead = st.number_input(f"Vol Head (std: {std['v_head']})", value=float(std['v_head']), step=0.1)
-        in_rpm = st.number_input(f"Limit RPM (std: {std['limit_std']})", value=int(std['limit_std']), step=100)
-        cc_placeholder = st.empty()
+        in_bore = st.number_input(f"Bore", value=float(std['bore']), step=0.1)
+        in_stroke = st.number_input(f"Stroke", value=float(std['stroke']), step=0.1)
+        in_vhead = st.number_input(f"Vol Head", value=float(std['v_head']), step=0.1)
+        in_rpm = st.number_input(f"Limit RPM", value=int(std['limit_std']), step=100)
+        cc_calc = (0.785398 * float(in_bore)**2 * float(in_stroke)) / 1000.0
+        st.success(f"CC: {cc_calc:.2f}")
 
-    with st.expander("🧪 Detail Expert Tuning", expanded=True):
-        in_v_in = st.number_input(f"Klep In (std: {std['valve_in']})", value=float(std['valve_in']), step=0.1)
+    with st.expander("🧪 Detail Tuning", expanded=True):
+        in_v_in = st.number_input(f"Klep In", value=float(std['valve_in']), step=0.1)
         in_n_v_in = st.selectbox("Jml Klep In", [1, 2, 4], index=1 if std['valves']>=4 else 0)
-        in_v_out = st.number_input(f"Klep Out (std: {std['valve_out']})", value=float(std['valve_out']), step=0.1)
+        in_v_out = st.number_input(f"Klep Out", value=float(std['valve_out']), step=0.1)
         in_n_v_out = st.selectbox("Jml Klep Out", [1, 2, 4], index=1 if std['valves']>=4 else 0)
-        in_venturi = st.number_input(f"Venturi/TB (std: {std['venturi']})", value=float(std['venturi']), step=0.5)
-        in_v_lift = st.number_input(f"Lift (std: {std['lift_std']})", value=float(std['lift_std']), step=0.1)
-        in_dur_in = st.number_input(f"Durasi In (std: {std['dur_std']})", value=float(std['dur_std']), step=1.0)
-        in_dur_out = st.number_input(f"Durasi Out (std: {std['dur_std']})", value=float(std['dur_std']), step=1.0)
-        in_afr = st.number_input("AFR", value=12.8, min_value=11.0, max_value=15.0, step=0.1)
+        in_venturi = st.number_input(f"Venturi/TB", value=float(std['venturi']), step=0.5)
+        in_v_lift = st.number_input(f"Lift", value=float(std['lift_std']), step=0.1)
+        in_dur_in = st.number_input(f"Durasi In", value=float(std['dur_std']), step=1.0)
+        in_dur_out = st.number_input(f"Durasi Out", value=float(std['dur_std']), step=1.0)
+        in_afr = st.number_input("AFR", value=12.8, step=0.1)
         in_material = st.selectbox("Piston", ["Casting", "Forged"])
         in_d_type = st.selectbox("Penggerak", ["CVT", "Rantai"])
 
-    cc_calc = (0.785398 * float(in_bore)**2 * float(in_stroke)) / 1000.0
-    cc_placeholder.success(f"CC: {cc_calc:.2f}")
     in_joki = st.number_input("Berat Joki (kg)", value=60.0)
     run_btn = st.button("🚀 ANALYZE & RUN AXIS")
 
-# --- 5. MAIN DISPLAY & GRAFIK (REVISI) ---
+# --- 5. MAIN DISPLAY (TETAP) ---
 st.title("📟 Hiar Lima Pendawa Tuning")
 
 if run_btn:
@@ -122,63 +117,46 @@ if run_btn:
         cc_calc, in_bore, in_stroke, cr_calc, in_rpm, in_v_in, in_n_v_in, 
         in_v_out, in_n_v_out, in_v_lift, in_venturi, in_dur_in, in_dur_out, in_afr, in_material, in_d_type, std
     )
-    hp_max = max(hps)
-    pwr = (hp_max / (std['weight_std'] + in_joki)) * 10.0
     st.session_state.history.append({
         "Run": full_label, "CC": cc_calc, "CR": cr_calc, "AFR": in_afr, 
-        "Max_HP": hp_max, "RPM_HP": rpms[np.argmax(hps)],
+        "Max_HP": max(hps), "RPM_HP": rpms[np.argmax(hps)],
         "Max_Nm": max(torques), "RPM_Nm": rpms[np.argmax(torques)], 
         "gsin": gsin, "gsout": gsout, "pspeed": pspeed, 
         "rpms": rpms, "hps": hps, "torques": torques, 
         "v_in": in_v_in, "v_out": in_v_out, "bore": in_bore, "stroke": in_stroke,
         "lift": in_v_lift, "venturi": in_venturi, "material": in_material, "model": sel_model, "std_data": std,
-        "dur_in": in_dur_in, "dur_out": in_dur_out, "valves": in_n_v_in + in_n_v_out,
-        "T100": 6.5 / math.pow(pwr, 0.45), "T201": 10.2 / math.pow(pwr, 0.45),
-        "T402": 16.5 / math.pow(pwr, 0.45), "T1000": 32.8 / math.pow(pwr, 0.45)
+        "dur_in": in_dur_in, "dur_out": in_dur_out, "valves": in_n_v_in + in_n_v_out
     })
 
 if st.session_state.history:
     latest = st.session_state.history[-1]
     
-    st.header("🌪️ Flowbench & Physical Analysis")
-    m1, m2, m3, m4, m5 = st.columns(5)
-    with m1: st.metric("Gas Speed In", f"{latest['gsin']:.2f} m/s")
-    with m2: st.metric("Gas Speed Out", f"{latest['gsout']:.2f} m/s")
-    with m3: st.metric("Piston Speed", f"{latest['pspeed']:.2f} m/s")
-    with m4: st.metric("Flow In (est)", f"{round((latest['v_in']/25.4)**2 * 146, 1)} CFM")
-    with m5: st.metric("Flow Out (est)", f"{round((latest['v_out']/25.4)**2 * 146, 1)} CFM")
-
-    # --- GRAFIK DENGAN GRID VERTIKAL SETIAP 1000 RPM (REVISI) ---
+    # GRAFIK (Grid 1000 RPM)
     fig = go.Figure()
-    colors_list = ["#FF0000", "#00FF00", "#0000FF", "#FFFF00", "#FF00FF"]
+    colors = ["#FF0000", "#00FF00", "#0000FF", "#FFFF00"]
     for i, r in enumerate(st.session_state.history):
-        color = colors_list[i % len(colors_list)]
-        fig.add_trace(go.Scatter(x=r['rpms'], y=r['hps'], name=f"{r['Run']} HP", line=dict(color=color, width=3)))
-        fig.add_trace(go.Scatter(x=r['rpms'], y=r['torques'], name=f"{r['Run']} Nm", line=dict(color=color, width=2, dash='dot'), yaxis="y2"))
-        
-        idx_hp = np.argmax(r['hps'])
-        fig.add_vline(x=r['rpms'][idx_hp], line_dash="dash", line_color=color, opacity=0.8)
-
-    fig.update_layout(
-        template="plotly_dark", height=600, 
-        xaxis=dict(title="Engine RPM", dtick=1000, showgrid=True, gridcolor="#444", zeroline=False), 
-        yaxis=dict(title="Power (HP)", showgrid=True, gridcolor="#333"), 
-        yaxis2=dict(overlaying="y", side="right", title="Torque (Nm)", showgrid=False)
-    )
+        c = colors[i % len(colors)]
+        fig.add_trace(go.Scatter(x=r['rpms'], y=r['hps'], name=f"{r['Run']} HP", line=dict(color=c, width=3)))
+        fig.add_trace(go.Scatter(x=r['rpms'], y=r['torques'], name=f"{r['Run']} Nm", line=dict(color=c, dash='dot'), yaxis="y2"))
+    
+    fig.update_layout(template="plotly_dark", xaxis=dict(dtick=1000, showgrid=True, gridcolor="#444"), yaxis2=dict(overlaying="y", side="right"))
     st.plotly_chart(fig, use_container_width=True)
     
-    # --- PERFORMANCE & DRAG TABLES (TETAP) ---
-    df = pd.DataFrame(st.session_state.history)
+    # --- 6. PERFORMANCE TABLE (REVISI: FIX ERROR .format()) ---
     st.write("### 📊 Performance Dyno Result")
-    st.dataframe(df[["Run", "CC", "CR", "AFR", "Max_HP", "RPM_HP", "Max_Nm", "RPM_Nm"]].format({
-        "CC": "{:.2f}", "CR": "{:.2f}", "AFR": "{:.2f}", "Max_HP": "{:.2f}", "Max_Nm": "{:.2f}"
-    }), hide_index=True, use_container_width=True)
+    df_res = pd.DataFrame(st.session_state.history)
+    # Menggunakan .style.format() untuk memperbaiki AttributeError
+    st.dataframe(
+        df_res[["Run", "CC", "CR", "AFR", "Max_HP", "RPM_HP", "Max_Nm", "RPM_Nm"]].style.format({
+            "CC": "{:.2f}", "CR": "{:.2f}", "AFR": "{:.2f}", "Max_HP": "{:.2f}", "Max_Nm": "{:.2f}"
+        }), 
+        hide_index=True, use_container_width=True
+    )
 
-    # --- 6. AXIS EXPERT (REVISI TOTAL: LOGIKA DINAMIS GRAHAM BELL) ---
+    # --- 7. AXIS EXPERT (REVISI: LOGIKA DINAMIS GRAHAM BELL) ---
     st.divider()
     st.header(f"🏁 Axis Expert Physics Analysis: {latest['model']}")
     
-    # Parameter Kalkulasi Sensitif
     b_s_ratio = latest['bore'] / latest['stroke']
     l_v_ratio = latest['lift'] / latest['v_in']
     port_valve_ratio = latest['venturi'] / latest['v_in']
@@ -189,40 +167,31 @@ if st.session_state.history:
     with col1:
         st.subheader("📊 1. Analisa Performa")
         p_msg = []
-        # Logika Dinamis Gas Speed (Bell Chapter 5)
+        # Analisa Gas Speed (Bell Chapter 5)
         if latest['gsin'] > 115:
-            p_msg.append(f"• **Inertia Loss:** Gas Speed {latest['gsin']:.1f}m/s sudah melewati batas sonik. Nafas mesin akan terhenti prematur sebelum limit RPM.")
-        elif 100 <= latest['gsin'] <= 115:
-            p_msg.append(f"• **High Ram Effect:** Velocity {latest['gsin']:.1f}m/s sangat ideal. Momentum udara akan terus mengisi silinder meski klep hampir tertutup.")
+            p_msg.append(f"• **Sonic Choke ({latest['gsin']:.1f} m/s):** Aliran udara 'tercekik' di porting. Power akan drop tajam setelah {latest['RPM_HP']} RPM.")
+        elif 95 <= latest['gsin'] <= 115:
+            p_msg.append(f"• **Velocity Ideal ({latest['gsin']:.1f} m/s):** Kecepatan gas sangat efisien untuk pengisian silinder di RPM tinggi.")
         else:
-            p_msg.append(f"• **Poor Atomization:** Kecepatan gas {latest['gsin']:.1f}m/s terlalu rendah. Bahan bakar cenderung mengendap di dinding porting (Fuel Drop).")
+            p_msg.append(f"• **Low Momentum ({latest['gsin']:.1f} m/s):** Lubang intake terlalu besar untuk CC ini. Respon gas bawah akan terasa 'ngok'.")
         
-        # Logika Bore-Stroke
-        if b_s_ratio > 1.25:
-            p_msg.append(f"• **Oversquare Logic:** Rasio {b_s_ratio:.2f} memungkinkan penggunaan klep lebar, namun butuh *static compression* tinggi untuk mengompensasi torsi bawah.")
-        elif b_s_ratio < 0.95:
-            p_msg.append(f"• **Undersquare Logic:** Stroke panjang {latest['stroke']}mm membatasi RPM atas demi keamanan material stang seher.")
-            
+        # Analisa Piston Speed
+        if latest['pspeed'] > 20:
+            p_msg.append(f"• **Inertia Danger ({latest['pspeed']:.1f} m/s):** Beban mekanis sangat tinggi. Risiko kerusakan kruk as/stang seher meningkat.")
         st.info("\n".join(p_msg))
 
     with col2:
         st.subheader("📚 2. Rekomendasi Ahli (Bell)")
         b_msg = []
-        # Berdasarkan Graham Bell: Valve Lift vs Diameter
+        # Curtain Area (Bell Chapter 4)
         if l_v_ratio < 0.25:
-            b_msg.append(f"• **Curtain Area Restricted:** Lift {latest['lift']}mm kurang dari 25% diameter klep. Efisiensi aliran terhambat di sekeliling payung klep.")
+            b_msg.append(f"• **Valve Obstruction:** Lift {latest['lift']}mm terlalu rendah. Graham Bell menyarankan minimal 25% dari diameter klep ({round(latest['v_in']*0.25,1)}mm).")
         elif 0.25 <= l_v_ratio <= 0.35:
-            b_msg.append(f"• **Bell's Sweet Spot:** Lift {latest['lift']}mm ({l_v_ratio:.2%}) memberikan flow maksimal tanpa membebani per klep secara ekstrem.")
+            b_msg.append(f"• **Flow Saturation:** Rasio Lift/Klep ({l_v_ratio:.2%}) sudah optimal untuk koefisien aliran maksimal.")
         
-        # Analisa Porting/Venturi (Bell Chapter 3)
-        if port_valve_ratio > 0.9:
-            b_msg.append(f"• **Velocity Drop:** Lubang porting/TB {latest['venturi']}mm hampir sama besar dengan klep. Ini akan menghancurkan torsi putaran rendah.")
-        elif port_valve_ratio < 0.75:
-            b_msg.append(f"• **Flow Restriction:** Ukuran venturi terlalu mencekik diameter klep. Potensi power atas tidak akan keluar.")
-        
-        if latest['CR'] > 13.0 and latest['AFR'] > 12.5:
-            b_msg.append("• **Heat Alert:** Graham Bell menyarankan AFR lebih basah (12.2:1) untuk mesin kompresi tinggi tanpa sistem pendingin tambahan.")
-            
+        # Porting Logic
+        if port_valve_ratio > 0.88:
+            b_msg.append(f"• **Taper Warning:** Ukuran TB/Venturi terlalu mendekati diameter klep. Kehilangan tekanan (pressure drop) akan merusak torsi.")
         st.warning("\n".join(b_msg))
 
     with col3:
@@ -230,26 +199,18 @@ if st.session_state.history:
         s_msg = []
         # Solusi spesifik berbasis angka presisi
         if diff_cc > 15:
-            rec_inj = round(latest['Max_HP'] * 11.5, 0)
-            s_msg.append(f"⚙️ **Fueling:** Bore up {diff_cc:.1f}cc. Injector wajib diganti ke minimal {rec_inj} cc/min.")
-        
-        if latest['pspeed'] > 20:
-            s_msg.append(f"⚙️ **Bottom End:** Piston speed {latest['pspeed']:.1f}m/s. Ganti Pin Piston dan Stang Seher material DLC/Forged.")
-        
-        if latest['gsin'] > 115 and latest['valves'] <= 2:
-            s_msg.append("⚙️ **Head Work:** Konfigurasi 2 klep mencapai limit flow. Solusi: Ganti klep lebar atau ubah sudut seat klep (3 angle seat).")
-            
-        if latest['dur_in'] > 265:
-            s_msg.append("⚙️ **Valvetrain:** Durasi tinggi memerlukan per klep progresif untuk mencegah *valve floating* di RPM limit.")
+            rec_inj = round(latest['Max_HP'] * 11.8, 0)
+            s_msg.append(f"⚙️ **Fuel System:** Bore up signifikan (+{diff_cc:.1f}cc). Rekomendasi Injector minimal {int(rec_inj)} cc/min.")
         
         if latest['CR'] > 12.8:
-            s_msg.append("⚙️ **Cooling:** Wajib upgrade radiator high-flow atau tambah oil cooler karena panas kompresi meningkat.")
+            s_msg.append("⚙️ **Ignition:** Kompresi tinggi ({:.1f}:1). Wajib gunakan busi dingin (Iridium) dan mundurkan timing pengapian 2 derajat.".format(latest['CR']))
         
-        # Jika semua parameter dalam batas aman
+        if latest['gsin'] > 115:
+            s_msg.append(f"⚙️ **Porting:** Haluskan area *bowl* dan *short turn radius* untuk menurunkan gas speed tanpa memperbesar diameter.")
+            
         if not s_msg:
-            s_msg.append("✅ **Fine Tuning:** Fokus pada penyelarasan *Ignition Timing* (derajat pengapian) untuk mencari MBT (Maximum Brake Torque).")
+            s_msg.append("✅ **Fine Tuning:** Spek sudah balance. Fokus pada settingan berat Roller (CVT) atau Final Gear.")
 
         for s in s_msg: st.success(s)
 
-st.write("---")
-st.caption("📟 **Axis Engine Simulation v2.3** | Logic Audited Based on 4-Stroke Performance Tuning Principles.")
+st.caption("📟 Axis Engine Simulation v2.4 | Audited Logic: Graham Bell 4-Stroke Tuning.")
