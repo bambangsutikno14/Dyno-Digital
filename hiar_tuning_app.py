@@ -16,7 +16,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# --- 2. DATABASE PABRIKAN (MATIC ONLY) ---
+# --- 2. DATABASE PABRIKAN (MATIC ONLY + BEAT FI) ---
 DATABASE_REF = {
     "YAMAHA (MATIC)": {
         "Karbu": {
@@ -47,6 +47,9 @@ DATABASE_REF = {
             }
         },
         "Injeksi": {
+            "110cc": {
+                "Beat 110 FI (eSP)": {"bore": 50.0, "stroke": 55.1, "v_head": 12.0, "valve_in": 25.5, "valve_out": 21.0, "venturi": 22.0, "hp_std": 8.68, "peak_rpm": 7500, "limit_std": 9300, "weight_std": 93.0, "valves": 2, "lift_std": 7.2, "dur_std": 232}
+            },
             "125cc": {
                 "Vario 125 eSP": {"bore": 52.4, "stroke": 57.9, "v_head": 14.2, "valve_in": 25.5, "valve_out": 21.0, "venturi": 24.0, "hp_std": 11.1, "peak_rpm": 8500, "limit_std": 9500, "weight_std": 111.0, "valves": 2, "lift_std": 7.8, "dur_std": 235}
             },
@@ -63,7 +66,7 @@ DATABASE_REF = {
 if 'history' not in st.session_state:
     st.session_state.history = []
 
-# --- 3. CORE CALCULATION ---
+# --- 3. CORE CALCULATION (LOGIKA ASLI) ---
 def calculate_axis_v22(cc, bore, stroke, cr, rpm_limit, v_in, n_v_in, v_out, n_v_out, v_lift, venturi, dur_in, dur_out, afr, material, d_type, std):
     rpms = np.arange(1000, int(rpm_limit) + 100, 100)
     hps, torques = [], []
@@ -89,7 +92,6 @@ def calculate_axis_v22(cc, bore, stroke, cr, rpm_limit, v_in, n_v_in, v_out, n_v
         if gs_out > 110.0: ve *= (110.0 / gs_out)**2.0
         
         friction_loss = (r / 15000.0)**2 
-        
         hp = (bmep_base * float(cc) * float(r) * ve * d_loss * afr_mod) / 950000.0
         hp *= (1.0 - friction_loss) 
         
@@ -127,12 +129,12 @@ with st.sidebar:
         in_v_out = st.number_input(f"Klep Out (std: {std['valve_out']})", value=float(std['valve_out']), step=0.1)
         in_n_v_out = st.selectbox("Jml Klep Out", [1, 2, 4], index=1 if std['valves']>=4 else 0)
         
-        in_venturi = st.number_input(f"Venturi (std: {std['venturi']})", value=float(std['venturi']), step=0.5)
+        in_venturi = st.number_input(f"Venturi/TB (std: {std['venturi']})", value=float(std['venturi']), step=0.5)
         in_v_lift = st.number_input(f"Lift (std: {std['lift_std']})", value=float(std['lift_std']), step=0.1)
         in_dur_in = st.number_input(f"Durasi In (std: {std['dur_std']})", value=float(std['dur_std']), step=1.0)
         in_dur_out = st.number_input(f"Durasi Out (std: {std['dur_std']})", value=float(std['dur_std']), step=1.0)
         
-        in_afr = st.slider("AFR", 11.0, 15.0, 12.8)
+        in_afr = st.selectbox("AFR", 11.0, 15.0, 12.8)
         in_material = st.selectbox("Piston", ["Casting", "Forged"])
         in_d_type = st.selectbox("Penggerak", ["CVT", "Rantai"])
 
@@ -146,7 +148,6 @@ st.title("📟 Hiar Lima Pendawa Tuning")
 
 if run_btn:
     cr_calc = (cc_calc + float(in_vhead)) / float(in_vhead)
-    # PERBAIKAN: Mengganti dur_out menjadi in_dur_out agar variabel terdefinisi
     rpms, hps, torques, pspeed, gsin, gsout = calculate_axis_v22(
         cc_calc, in_bore, in_stroke, cr_calc, in_rpm, in_v_in, in_n_v_in, 
         in_v_out, in_n_v_out, in_v_lift, in_venturi, in_dur_in, in_dur_out, in_afr, in_material, in_d_type, std
@@ -160,7 +161,8 @@ if run_btn:
         "Max_Nm": max(torques), "RPM_Nm": rpms[np.argmax(torques)], 
         "gsin": gsin, "gsout": gsout, "pspeed": pspeed, 
         "rpms": rpms, "hps": hps, "torques": torques, 
-        "v_in": in_v_in, "v_out": in_v_out, "bore": in_bore,
+        "v_in": in_v_in, "v_out": in_v_out, "bore": in_bore, "stroke": in_stroke,
+        "lift": in_v_lift, "venturi": in_venturi, "material": in_material,
         "T100": 6.5 / math.pow(pwr, 0.45), "T201": 10.2 / math.pow(pwr, 0.45),
         "T402": 16.5 / math.pow(pwr, 0.45), "T1000": 32.8 / math.pow(pwr, 0.45)
     })
@@ -184,28 +186,18 @@ if st.session_state.history:
     for i, r in enumerate(st.session_state.history):
         color = colors[i % len(colors)]
         bg_color = bg_colors[i % len(bg_colors)]
-
         fig.add_trace(go.Scatter(x=r['rpms'], y=r['hps'], name=f"{r['Run']} (HP)", line=dict(color=color, width=3)))
         fig.add_trace(go.Scatter(x=r['rpms'], y=r['torques'], name=f"{r['Run']} (Nm)", line=dict(color=color, width=2, dash='dot'), yaxis="y2"))
-
         fig.add_annotation(x=r['rpms'][-1], y=r['hps'][-1], text=r['Run'], showarrow=False, xanchor="left", font=dict(color=color, size=10))
-
         idx_hp = np.argmax(r['hps'])
         idx_nm = np.argmax(r['torques'])
-        
-        fig.add_annotation(x=r['rpms'][idx_hp], y=r['hps'][idx_hp],
-                           text=f"Peak: {r['hps'][idx_hp]}HP@{r['rpms'][idx_hp]}",
-                           showarrow=True, arrowhead=1, bgcolor=bg_color, font=dict(color="white", size=11))
-        
-        fig.add_annotation(x=r['rpms'][idx_nm], y=r['torques'][idx_nm],
-                           text=f"Peak: {r['torques'][idx_nm]}Nm@{r['rpms'][idx_nm]}",
-                           showarrow=True, arrowhead=1, bgcolor=bg_color, font=dict(color="white", size=11), yref="y2")
+        fig.add_annotation(x=r['rpms'][idx_hp], y=r['hps'][idx_hp], text=f"Peak: {r['hps'][idx_hp]}HP@{r['rpms'][idx_hp]}", showarrow=True, arrowhead=1, bgcolor=bg_color, font=dict(color="white", size=11))
+        fig.add_annotation(x=r['rpms'][idx_nm], y=r['torques'][idx_nm], text=f"Peak: {r['torques'][idx_nm]}Nm@{r['rpms'][idx_nm]}", showarrow=True, arrowhead=1, bgcolor=bg_color, font=dict(color="white", size=11), yref="y2")
 
     fig.update_layout(template="plotly_dark", height=600, showlegend=False,
                       xaxis=dict(title="Engine RPM", showgrid=True, gridcolor="#333", dtick=1000),
                       yaxis=dict(title="Power (HP)", showgrid=True, gridcolor="#333"),
                       yaxis2=dict(overlaying="y", side="right", title="Torque (Nm)", showgrid=False))
-    
     st.plotly_chart(fig, use_container_width=True)
     
     # --- TABLES ---
@@ -221,25 +213,62 @@ if st.session_state.history:
         "100m": "{:.2f}s", "201m": "{:.2f}s", "402m": "{:.2f}s", "1000m": "{:.2f}s"
     }), hide_index=True, use_container_width=True)
 
-    # --- ANALISA GRAHAM BELL ---
+    # --- ANALISA DINAMIS (GRAHAM BELL PRINCIPLES) ---
     st.divider()
     st.header("🏁 Axis Expert Physics Analysis (Ref: A. Graham Bell)")
     c1, c2 = st.columns(2)
+    
     with c1:
         st.subheader("🧐 Analisa Kondisi Mesin")
-        if latest['gsin'] > 115: 
-            st.error(f"❌ **TERMINAL VELOCITY:** {latest['gsin']:.1f} m/s. (Port choking).")
-        elif latest['gsin'] < 95: 
-            st.warning(f"⚠️ **LOW INERTIA:** {latest['gsin']:.1f} m/s. (Velocity rendah).")
-        else: 
-            st.success(f"✅ **OPTIMAL GAS SPEED:** {latest['gsin']:.1f} m/s.")
+        # Analisa Gas Speed
+        if latest['gsin'] > 115:
+            st.error(f"⚠️ **Port Choking:** Gas speed {latest['gsin']:.1f} m/s terlalu tinggi. Intake port terlalu kecil untuk CC ini, menyebabkan tenaga 'tertahan' di RPM atas.")
+        elif latest['gsin'] < 95:
+            st.warning(f"⚠️ **Weak Scavenging:** Gas speed {latest['gsin']:.1f} m/s terlalu rendah. Port terlalu besar, torsi bawah akan loyo karena efek inersia gas lemah.")
+        else:
+            st.success(f"✅ **Ideal Port Velocity:** {latest['gsin']:.1f} m/s. Efisiensi volumetrik berada pada titik optimal untuk tenaga puncak.")
+
+        # Analisa Compression vs Material
+        if latest['CR'] > 13.0 and latest['material'] == "Casting":
+            st.error(f"⚠️ **Detonation Risk:** Rasio kompresi {latest['CR']:.1f}:1 terlalu tinggi untuk piston casting. Risiko retak pada dome piston sangat besar.")
+        elif latest['CR'] > 12.5:
+            st.warning(f"🔔 **Thermal Load:** Kompresi {latest['CR']:.1f}:1 membutuhkan manajemen panas (oli & pendinginan) yang ekstra ketat.")
+
+        # Analisa Lift/Valve Ratio
+        lift_ratio = latest['lift'] / latest['v_in']
+        if lift_ratio < 0.25:
+            st.warning(f"⚠️ **Insufficient Lift:** Rasio lift ({lift_ratio:.2f}). Klep kurang membuka lebar untuk mengalirkan campuran udara-bahan bakar secara maksimal.")
+        elif lift_ratio > 0.35:
+            st.error(f"⚠️ **Aggressive Cam:** Rasio lift ({lift_ratio:.2f}) sangat tinggi. Risiko floating pada per klep standar meningkat drastis.")
 
     with c2:
-        st.subheader("💡 Saran Ahli & Solusi")
-        ideal_in = latest['bore'] * 0.52 
-        st.info(f"📍 **Valve Sizing Target:** {ideal_in:.1f}mm (52% Bore).")
-        solusi = "Pada Matic, optimasi Port Velocity sangat krusial karena karakter transmisi CVT yang menahan RPM di rentang tertentu."
-        st.success(f"📍 **Solusi Utama:** {solusi}")
+        st.subheader("💡 Saran Ahli & Rekomendasi Part")
+        rekomendasi = []
+        
+        # Logika rekomendasi part dinamis
+        if latest['gsin'] > 115:
+            rekomendasi.append("1. **Porting & Polish:** Perbesar diameter porting intake (fokus pada area bowl) atau ganti **Throttle Body (TB)** yang lebih besar.")
+        if latest['gsin'] < 95:
+            rekomendasi.append("1. **Intake Velocity:** Kecilkan area porting atau gunakan intake manifold dengan diameter lebih kecil untuk meningkatkan kecepatan aliran.")
+        
+        if latest['CR'] > 12.8:
+            rekomendasi.append("2. **Piston:** Wajib ganti ke **Forged Piston** untuk daya tahan tekanan tinggi.")
+            rekomendasi.append("3. **Busi:** Gunakan busi tipe dingin (misal: NGK Iridium Heat Range 9).")
+        
+        if lift_ratio < 0.28:
+            rekomendasi.append("4. **Camshaft:** Gunakan noken as dengan **Lift lebih tinggi** untuk memaksimalkan Flow Coefficient.")
+        
+        if latest['pspeed'] > 20:
+            rekomendasi.append("5. **Valve Spring:** Ganti ke per klep racing (High Tension) untuk mencegah *valve floating* di RPM tinggi.")
+
+        if latest['AFR'] > 13.5:
+            rekomendasi.append("6. **Fuel System:** Ganti **Injektor dengan hole lebih banyak/cc besar** untuk menjaga AFR tetap kaya (12.5-12.8) saat beban penuh.")
+
+        if not rekomendasi:
+            st.success("📍 Setingan saat ini sudah sangat seimbang menurut parameter Graham Bell.")
+        else:
+            for item in rekomendasi:
+                st.info(item)
 
 st.write("---")
-st.error("⚠️ **DISCLAIMER:** Simulasi database MATIC ini menggunakan parameter spesifikasi pabrikan terbaru.")
+st.error("⚠️ **DISCLAIMER:** Seluruh saran berdasarkan perhitungan matematis 4-Stroke Performance Tuning.")
