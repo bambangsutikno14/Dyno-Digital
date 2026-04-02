@@ -30,8 +30,8 @@ DATABASE_REF = {
 if 'history' not in st.session_state:
     st.session_state.history = []
 
-# --- 3. CORE CALCULATION (V19) ---
-def calculate_axis_v19(cc, bore, stroke, cr, rpm_limit, v_in, n_v_in, v_out, n_v_out, v_lift, venturi, dur_in, dur_out, afr, material, d_type, std):
+# --- 3. CORE CALCULATION (V21 - UPDATED DROP-OFF LOGIC) ---
+def calculate_axis_v21(cc, bore, stroke, cr, rpm_limit, v_in, n_v_in, v_out, n_v_out, v_lift, venturi, dur_in, dur_out, afr, material, d_type, std):
     rpms = np.arange(1000, int(rpm_limit) + 100, 100)
     hps, torques = [], []
     
@@ -47,7 +47,8 @@ def calculate_axis_v19(cc, bore, stroke, cr, rpm_limit, v_in, n_v_in, v_out, n_v
     bmep_base = (float(std['hp_std']) * 950000.0) / (float(std['bore']**2 * 0.785 * std['stroke']/1000) * float(std['peak_rpm']) * 0.85)
 
     for r in rpms:
-        ve = math.exp(-((r - adj_peak_rpm) / 4800.0)**2) if r <= adj_peak_rpm else math.exp(-((r - adj_peak_rpm) / 2800.0)**2)
+        # LOGIKA TURUN: Mengubah divisor kanan (setelah peak) dari 2800 menjadi 1800 agar grafik turun tajam
+        ve = math.exp(-((r - adj_peak_rpm) / 4800.0)**2) if r <= adj_peak_rpm else math.exp(-((r - adj_peak_rpm) / 1800.0)**2)
         ps_speed = (2.0 * float(stroke) * float(r)) / 60000.0
         gs_in = ((float(bore) / eff_v_in)**2) * ps_speed
         gs_out = ((float(bore) / eff_v_out)**2) * ps_speed 
@@ -106,7 +107,7 @@ st.title("📟 Hiar Lima Pendawa Tuning")
 
 if run_btn:
     cr_calc = (cc_calc + float(in_vhead)) / float(in_vhead)
-    rpms, hps, torques, pspeed, gsin, gsout = calculate_axis_v19(
+    rpms, hps, torques, pspeed, gsin, gsout = calculate_axis_v21(
         cc_calc, in_bore, in_stroke, cr_calc, in_rpm, in_v_in, in_n_v_in, 
         in_v_out, in_n_v_out, in_v_lift, 28.0, in_dur_in, in_dur_out, in_afr, in_material, in_d_type, std
     )
@@ -125,7 +126,6 @@ if run_btn:
 if st.session_state.history:
     latest = st.session_state.history[-1]
     
-    # --- METRICS (REPAIRED) ---
     st.header("🌪️ Flowbench & Physical Analysis")
     m1, m2, m3, m4, m5 = st.columns(5)
     with m1: st.metric("Gas Speed In", f"{latest['gsin']:.2f} m/s")
@@ -134,11 +134,32 @@ if st.session_state.history:
     with m4: st.metric("Flow In (est)", f"{round((latest['v_in']/25.4)**2 * 146, 1)} CFM")
     with m5: st.metric("Flow Out (est)", f"{round((latest['v_out']/25.4)**2 * 146, 1)} CFM")
 
-    # --- GRAPH ---
     fig = go.Figure()
     for r in st.session_state.history:
+        # HP LINE
         fig.add_trace(go.Scatter(x=r['rpms'], y=r['hps'], name=f"{r['Run']} (HP)", line=dict(width=4)))
+        # Nm LINE
         fig.add_trace(go.Scatter(x=r['rpms'], y=r['torques'], name=f"{r['Run']} (Nm)", line=dict(dash='dot'), yaxis="y2"))
+        
+        # PEAK HP MARKER (Menampilkan HP & RPM Tertinggi di Grafik)
+        fig.add_trace(go.Scatter(
+            x=[r['RPM_HP']], y=[r['Max_HP']],
+            mode='markers+text',
+            text=[f"Peak: {r['Max_HP']:.2f} HP @ {r['RPM_HP']} RPM"],
+            textposition="top center",
+            marker=dict(size=12, symbol='star', color='yellow'),
+            name="Peak HP", showlegend=False
+        ))
+        
+        # PEAK Nm MARKER (Menampilkan Torsi & RPM Tertinggi di Grafik)
+        fig.add_trace(go.Scatter(
+            x=[r['RPM_Nm']], y=[r['Max_Nm']],
+            mode='markers+text',
+            text=[f"Peak: {r['Max_Nm']:.2f} Nm @ {r['RPM_Nm']} RPM"],
+            textposition="bottom center",
+            marker=dict(size=12, symbol='star', color='cyan'),
+            yaxis="y2", name="Peak Nm", showlegend=False
+        ))
 
     fig.update_layout(template="plotly_dark", height=550,
                       xaxis=dict(title="RPM", showgrid=True, gridcolor="#333", dtick=1000), 
@@ -146,12 +167,9 @@ if st.session_state.history:
                       yaxis2=dict(overlaying="y", side="right", title="Nm"))
     st.plotly_chart(fig, use_container_width=True)
 
-    # --- TABLES WITH 2 DECIMAL PLACES ---
     df = pd.DataFrame(st.session_state.history)
-    
     st.write("### 📊 Dyno Comparison Ledger")
-    df_dyno = df[["Run", "CC", "CR", "AFR", "Max_HP", "RPM_HP", "Max_Nm", "RPM_Nm"]].copy()
-    st.dataframe(df_dyno.style.format({
+    st.dataframe(df[["Run", "CC", "CR", "AFR", "Max_HP", "RPM_HP", "Max_Nm", "RPM_Nm"]].style.format({
         "CC": "{:.2f}", "CR": "{:.2f}", "AFR": "{:.2f}", "Max_HP": "{:.2f}", "Max_Nm": "{:.2f}"
     }), hide_index=True, use_container_width=True)
 
@@ -160,8 +178,7 @@ if st.session_state.history:
     st.dataframe(df_drag.style.format({
         "100m": "{:.2f}", "201m": "{:.2f}", "402m": "{:.2f}", "1000m": "{:.2f}"
     }), hide_index=True, use_container_width=True)
-    
-    # --- EXPERT ADVICE ---
+
     st.divider()
     st.header("🏁 Axis Expert Physics Analysis")
     c1, c2 = st.columns(2)
