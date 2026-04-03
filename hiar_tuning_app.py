@@ -9,7 +9,6 @@ import base64
 from pathlib import Path
 import streamlit.components.v1 as components
 
-# --- 1. CONFIG & UI ---
 st.set_page_config(page_title="Hiar Lima Pendawa Tuning", layout="wide")
 
 st.markdown("""
@@ -21,11 +20,12 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# --- 2. DATABASE PABRIKAN (MATIC ONLY + BEAT FI) ---
 DATABASE_REF = {
     "YAMAHA (MATIC)": {
         "Karbu": {
-            "115cc": {"Mio / Soul 115": {"bore": 50.0, "stroke": 57.9, "v_head": 13.7, "valve_in": 23.0, "valve_out": 19.0, "venturi": 24.0, "hp_std": 8.78, "peak_rpm": 8000, "limit_std": 9000, "weight_std": 92.0, "valves": 2, "lift_std": 7.0, "dur_std": 230}},
+            "115cc": {
+                "Mio / Soul 115": {"bore": 50.0, "stroke": 57.9, "v_head": 13.7, "valve_in": 23.0, "valve_out": 19.0, "venturi": 24.0, "hp_std": 8.78, "peak_rpm": 8000, "limit_std": 9000, "weight_std": 92.0, "valves": 2, "lift_std": 7.0, "dur_std": 230}
+            },
             "125cc": {
                 "Xeon (Carb)": {"bore": 52.4, "stroke": 57.9, "v_head": 14.5, "valve_in": 26.0, "valve_out": 21.0, "venturi": 26.0, "hp_std": 10.7, "peak_rpm": 8500, "limit_std": 9500, "weight_std": 103.0, "valves": 2, "lift_std": 7.5, "dur_std": 235}
             }
@@ -66,12 +66,14 @@ DATABASE_REF = {
     }
 }
 
-if 'history' not in st.session_state:
+if "history" not in st.session_state:
     st.session_state.history = []
 
-# --- HELPERS ---
-def clamp(value, low, high): return max(low, min(high, value))
-def safe_div(a, b, default=0.0): return a / b if abs(b) > 1e-12 else default
+def clamp(value, low, high):
+    return max(low, min(high, value))
+
+def safe_div(a, b, default=0.0):
+    return a / b if abs(b) > 1e-12 else default
 
 def param_signature(*values):
     parts = []
@@ -80,90 +82,94 @@ def param_signature(*values):
     return int(hashlib.sha1("|".join(parts).encode("utf-8")).hexdigest(), 16)
 
 def choose_variant(options, *signature_values):
-    if not options: return ""
-    return options[param_signature(*signature_values) % len(options)]
+    return options[param_signature(*signature_values) % len(options)] if options else ""
 
 def color_tag(text, level):
     palette = {"safe": "#3ba3ff", "optimal": "#39d353", "risk": "#ff4d4f"}
-    c = palette.get(level, "#ffffff")
-    return "<span style='color:{}; font-weight:700'>{}</span>".format(c, text)
+    return f"<span style='color:{palette.get(level, '#ffffff')}; font-weight:700'>{text}</span>"
 
 def state_from_value(value, safe_low, safe_high, opt_low, opt_high):
-    if opt_low <= value <= opt_high: return "optimal"
-    if safe_low <= value <= safe_high: return "safe"
+    if opt_low <= value <= opt_high:
+        return "optimal"
+    if safe_low <= value <= safe_high:
+        return "safe"
     return "risk"
 
 def style_state(val, kind):
     if kind == "cr":
-        if val < 10.0: return "color:#3ba3ff; font-weight:700"
-        if 10.0 <= val <= 12.8: return "color:#39d353; font-weight:700"
-        if 12.8 < val <= 13.8: return "color:#3ba3ff; font-weight:700"
+        if val < 10.0:
+            return "color:#3ba3ff; font-weight:700"
+        if 10.0 <= val <= 12.8:
+            return "color:#39d353; font-weight:700"
+        if 12.8 < val <= 13.8:
+            return "color:#3ba3ff; font-weight:700"
         return "color:#ff4d4f; font-weight:700"
     if kind == "vel":
-        if val < 90.0 or val > 118.0: return "color:#ff4d4f; font-weight:700"
-        if 100.0 <= val <= 110.0: return "color:#39d353; font-weight:700"
+        if val < 90.0 or val > 118.0:
+            return "color:#ff4d4f; font-weight:700"
+        if 100.0 <= val <= 110.0:
+            return "color:#39d353; font-weight:700"
         return "color:#3ba3ff; font-weight:700"
     if kind == "afr":
-        if 12.4 <= val <= 13.0: return "color:#39d353; font-weight:700"
-        if 12.1 <= val < 12.4 or 13.0 < val <= 13.4: return "color:#3ba3ff; font-weight:700"
+        if 12.4 <= val <= 13.0:
+            return "color:#39d353; font-weight:700"
+        if 12.1 <= val < 12.4 or 13.0 < val <= 13.4:
+            return "color:#3ba3ff; font-weight:700"
         return "color:#ff4d4f; font-weight:700"
     return ""
 
-def area_circle_mm2(diameter_mm): return math.pi * (diameter_mm / 2.0) ** 2
+def area_circle_mm2(diameter_mm):
+    return math.pi * (diameter_mm / 2.0) ** 2
 
-def curtain_area_mm2(valve_d_mm, lift_mm, n_valves): return math.pi * max(valve_d_mm, 0.1) * max(lift_mm, 0.1) * max(n_valves, 1)
+def curtain_area_mm2(valve_d_mm, lift_mm, n_valves):
+    return math.pi * max(valve_d_mm, 0.1) * max(lift_mm, 0.1) * max(n_valves, 1)
 
-def harmonic_mean(a, b): return (2.0 * a * b) / max(a + b, 1e-9)
+def harmonic_mean(a, b):
+    return (2.0 * a * b) / max(a + b, 1e-9)
 
-def build_analog_gauge(value, max_value, title, unit, redline=None, optimal_low=None, optimal_high=None):
-    redline = redline if redline is not None else max_value * 0.85
-    optimal_low = optimal_low if optimal_low is not None else max_value * 0.45
-    optimal_high = optimal_high if optimal_high is not None else max_value * 0.78
+def build_needle_gauge(label, value, max_value, unit, redline, optimal_low, optimal_high, size=360):
     value = max(0.0, min(float(value), float(max_value)))
-    fig = go.Figure(go.Indicator(
-        mode="gauge+number",
-        value=value,
-        number={"suffix": f" {unit}", "font": {"size": 42, "color": "#FFFFFF"}},
-        title={"text": f"<b>{title}</b>", "font": {"size": 22, "color": "#FFFFFF"}},
-        gauge={
-            "axis": {"range": [0, max_value], "tickwidth": 1, "tickcolor": "#666"},
-            "bar": {"color": "#39d353"},
-            "bgcolor": "#050505",
-            "borderwidth": 2,
-            "bordercolor": "#333",
-            "steps": [
-                {"range": [0, optimal_low], "color": "#16304f"},
-                {"range": [optimal_low, optimal_high], "color": "#13381f"},
-                {"range": [optimal_high, redline], "color": "#4a3a12"},
-                {"range": [redline, max_value], "color": "#4a1212"},
-            ],
-            "threshold": {"line": {"color": "#ff4d4f", "width": 4}, "thickness": 0.75, "value": redline},
-        },
-    ))
-    fig.update_layout(template="plotly_dark", height=320, margin=dict(l=20, r=20, t=60, b=10), paper_bgcolor="#050505", plot_bgcolor="#050505", font=dict(color="#FFFFFF"))
-    return fig
+    pct = 0 if max_value <= 0 else value / max_value
+    angle = -135 + (pct * 270)
+    return f"""
+    <div style="width:100%; max-width:{size}px; margin:auto; background:#050505; border:1px solid #333; border-radius:22px; padding:14px 14px 18px 14px; box-shadow:0 10px 40px rgba(0,0,0,.35);">
+      <div style="text-align:center; color:#fff; font-weight:800; font-size:22px; margin-bottom:8px;">{label}</div>
+      <div style="position:relative; width:100%; aspect-ratio:1/1;">
+        <svg viewBox="0 0 400 400" width="100%" height="100%">
+          <defs>
+            <filter id="glow">
+              <feGaussianBlur stdDeviation="3.5" result="coloredBlur"/>
+              <feMerge>
+                <feMergeNode in="coloredBlur"/>
+                <feMergeNode in="SourceGraphic"/>
+              </feMerge>
+            </filter>
+          </defs>
+          <circle cx="200" cy="200" r="165" fill="#0b0b0b" stroke="#2e2e2e" stroke-width="10"/>
+          <circle cx="200" cy="200" r="145" fill="#050505" stroke="#1f1f1f" stroke-width="3"/>
+          <path d="M 88 270 A 135 135 0 0 1 312 270" fill="none" stroke="#1d3f63" stroke-width="16" stroke-linecap="round"/>
+          <path d="M 132 150 A 135 135 0 0 1 278 150" fill="none" stroke="#1b5c2d" stroke-width="16" stroke-linecap="round"/>
+          <path d="M 278 150 A 135 135 0 0 1 312 270" fill="none" stroke="#5b2b16" stroke-width="16" stroke-linecap="round"/>
+          <path d="M 312 270 A 135 135 0 0 1 323 296" fill="none" stroke="#7a1212" stroke-width="16" stroke-linecap="round"/>
+          {''.join([f'<line x1="{200 + 145*math.cos(math.radians(-135 + i*27))}" y1="{200 + 145*math.sin(math.radians(-135 + i*27))}" x2="{200 + 128*math.cos(math.radians(-135 + i*27))}" y2="{200 + 128*math.sin(math.radians(-135 + i*27))}" stroke="#777" stroke-width="3"/>' for i in range(11)])}
+          <text x="64" y="286" fill="#9aa4b2" font-size="16" font-family="Arial">0</text>
+          <text x="110" y="150" fill="#9aa4b2" font-size="16" font-family="Arial">{int(max_value*0.25)}</text>
+          <text x="190" y="105" fill="#9aa4b2" font-size="16" font-family="Arial">{int(max_value*0.50)}</text>
+          <text x="272" y="150" fill="#9aa4b2" font-size="16" font-family="Arial">{int(max_value*0.75)}</text>
+          <text x="308" y="286" fill="#9aa4b2" font-size="16" font-family="Arial">{int(max_value)}</text>
+          <g transform="rotate({angle} 200 200)" style="transition: transform 0.24s cubic-bezier(0.2, 0.9, 0.2, 1); filter:url(#glow);">
+            <line x1="200" y1="205" x2="200" y2="78" stroke="#ff3b30" stroke-width="6" stroke-linecap="round"/>
+            <line x1="200" y1="205" x2="200" y2="84" stroke="#ffffff" stroke-width="2" stroke-linecap="round"/>
+            <circle cx="200" cy="205" r="16" fill="#111" stroke="#d9d9d9" stroke-width="3"/>
+          </g>
+          <text x="200" y="248" text-anchor="middle" fill="#ffffff" font-size="38" font-family="Arial" font-weight="700">{value:.0f}</text>
+          <text x="200" y="276" text-anchor="middle" fill="#8ab4ff" font-size="16" font-family="Arial">{unit}</text>
+        </svg>
+      </div>
+    </div>
+    """
 
-def build_live_graph(history, current_idx=None, current_rpm=None, current_hp=None, current_nm=None):
-    fig = go.Figure()
-    colors = ["rgba(255, 0, 0, 1)", "rgba(0, 255, 0, 1)", "rgba(0, 0, 255, 1)", "rgba(255, 255, 0, 1)", "rgba(255, 0, 255, 1)", "rgba(0, 255, 255, 1)"]
-    for i, r in enumerate(history):
-        color = colors[i % len(colors)]
-        opacity = 0.18 if i < len(history) - 1 else 0.9
-        width = 2 if i < len(history) - 1 else 3
-        dash = "dot" if i < len(history) - 1 else "solid"
-        fig.add_trace(go.Scatter(x=r['rpms'], y=r['hps'], name=f"{r['Run']} (HP)", line=dict(color=color, width=width, dash=dash), opacity=opacity))
-        fig.add_trace(go.Scatter(x=r['rpms'], y=r['torques'], name=f"{r['Run']} (Nm)", line=dict(color=color, width=max(width - 1, 1), dash='dot'), opacity=opacity, yaxis="y2"))
-    if current_idx is not None and history:
-        current = history[current_idx]
-        color = colors[current_idx % len(colors)]
-        fig.add_trace(go.Scatter(x=current['rpms'][: current['live_pos'] + 1], y=current['hps'][: current['live_pos'] + 1], name="Current Live HP", line=dict(color=color, width=5), opacity=1.0))
-        fig.add_trace(go.Scatter(x=[current_rpm], y=[current_hp], mode="markers", marker=dict(size=12, color="#FFFFFF", line=dict(color=color, width=3)), name="Live Point", showlegend=False))
-        fig.add_trace(go.Scatter(x=[current_rpm], y=[current_nm], mode="markers", marker=dict(size=10, color="#FFFFFF", line=dict(color=color, width=2)), name="Live Torque", yaxis="y2", showlegend=False))
-        fig.add_vline(x=current_rpm, line_width=1, line_dash="dash", line_color="rgba(255,255,255,0.5)")
-    fig.update_layout(template="plotly_dark", height=560, showlegend=False, xaxis=dict(title="Engine RPM", showgrid=True, gridcolor="#333", dtick=1000), yaxis=dict(title="Power (HP)", showgrid=True, gridcolor="#333"), yaxis2=dict(overlaying="y", side="right", title="Torque (Nm)", showgrid=False), paper_bgcolor="#050505", plot_bgcolor="#050505", margin=dict(l=30, r=30, t=20, b=20))
-    return fig
-
-def render_engine_audio(rpm_now, redline, asset_names=None):
+def render_engine_audio_once(rpm_now, redline, asset_names=None):
     if asset_names is None:
         asset_names = ["assets/superbike_loop.mp3", "superbike_loop.mp3", "engine_loop.mp3"]
     audio_path = None
@@ -175,58 +181,73 @@ def render_engine_audio(rpm_now, redline, asset_names=None):
     if audio_path is None:
         return
     try:
-        audio_bytes = audio_path.read_bytes()
-        audio_b64 = base64.b64encode(audio_bytes).decode("utf-8")
+        audio_b64 = base64.b64encode(audio_path.read_bytes()).decode("utf-8")
         playback_rate = clamp(0.72 + (float(rpm_now) / max(float(redline), 1.0)) * 1.65, 0.72, 2.20)
         volume = clamp(0.18 + (float(rpm_now) / max(float(redline), 1.0)) * 0.42, 0.18, 0.60)
         html = f"""
-        <html>
-        <body style='margin:0; padding:0; background:transparent; overflow:hidden;'>
-          <audio id='engineAudio' autoplay loop style='display:none;'>
+        <html><body style='margin:0; padding:0; background:transparent; overflow:hidden;'>
+          <audio id='engineAudio' autoplay style='display:none;'>
             <source src='data:audio/mp3;base64,{audio_b64}' type='audio/mp3'>
           </audio>
           <script>
             const a = document.getElementById('engineAudio');
             if (a) {{
+              a.loop = false;
               a.playbackRate = {playback_rate:.4f};
               a.volume = {volume:.4f};
               a.play().catch(()=>{{}});
+              a.addEventListener('ended', () => {{
+                a.pause();
+                a.currentTime = 0;
+              }});
             }}
           </script>
-        </body>
-        </html>
+        </body></html>
         """
         components.html(html, height=0)
     except Exception:
         pass
 
-def interpolate_value(x, x_points, y_points):
-    if len(x_points) < 2:
-        return y_points[0] if y_points else 0.0
-    return float(np.interp(x, x_points, y_points))
+def build_live_graph(history, current_idx=None, current_rpm=None, current_hp=None, current_nm=None):
+    fig = go.Figure()
+    colors = ["rgba(255, 0, 0, 1)", "rgba(0, 255, 0, 1)", "rgba(0, 0, 255, 1)", "rgba(255, 255, 0, 1)", "rgba(255, 0, 255, 1)", "rgba(0, 255, 255, 1)"]
+    for i, r in enumerate(history):
+        color = colors[i % len(colors)]
+        opacity = 0.18 if i < len(history) - 1 else 0.9
+        width = 2 if i < len(history) - 1 else 3
+        dash = "dot" if i < len(history) - 1 else "solid"
+        fig.add_trace(go.Scatter(x=r["rpms"], y=r["hps"], name=f"{r['Run']} (HP)", line=dict(color=color, width=width, dash=dash), opacity=opacity))
+        fig.add_trace(go.Scatter(x=r["rpms"], y=r["torques"], name=f"{r['Run']} (Nm)", line=dict(color=color, width=max(width - 1, 1), dash="dot"), opacity=opacity, yaxis="y2"))
+    if current_idx is not None and history:
+        current = history[current_idx]
+        color = colors[current_idx % len(colors)]
+        fig.add_trace(go.Scatter(x=current["rpms"][: current["live_pos"] + 1], y=current["hps"][: current["live_pos"] + 1], name="Current Live HP", line=dict(color=color, width=5), opacity=1.0))
+        fig.add_trace(go.Scatter(x=[current_rpm], y=[current_hp], mode="markers", marker=dict(size=12, color="#FFFFFF", line=dict(color=color, width=3)), name="Live Point", showlegend=False))
+        fig.add_trace(go.Scatter(x=[current_rpm], y=[current_nm], mode="markers", marker=dict(size=10, color="#FFFFFF", line=dict(color=color, width=2)), name="Live Torque", yaxis="y2", showlegend=False))
+        fig.add_vline(x=current_rpm, line_width=1, line_dash="dash", line_color="rgba(255,255,255,0.5)")
+    fig.update_layout(template="plotly_dark", height=560, showlegend=False, xaxis=dict(title="Engine RPM", showgrid=True, gridcolor="#333", dtick=1000), yaxis=dict(title="Power (HP)", showgrid=True, gridcolor="#333"), yaxis2=dict(overlaying="y", side="right", title="Torque (Nm)", showgrid=False), paper_bgcolor="#050505", plot_bgcolor="#050505", margin=dict(l=30, r=30, t=20, b=20))
+    return fig
 
-# --- 4. CORE CALCULATION ---
 def calculate_axis_v22(cc, bore, stroke, cr, rpm_limit, v_in, n_v_in, v_out, n_v_out, v_lift, venturi, dur_in, dur_out, afr, material, d_type, std):
     rpms = np.arange(1000, int(rpm_limit) + 100, 100)
     hps, torques = [], []
-    pspeeds, vel_in_list, vel_out_list = [], [], []
-    ve_list = []
-    std_cc = (0.785398 * float(std['bore']) ** 2 * float(std['stroke'])) / 1000.0
-    std_cr = (std_cc + float(std['v_head'])) / float(std['v_head'])
-    std_avg_dur = float(std['dur_std'])
-    std_lift_ratio = safe_div(float(std['lift_std']), float(std['valve_in']), 0.0)
-    std_intake_curtain = curtain_area_mm2(float(std['valve_in']), float(std['lift_std']), int(std['valves']))
-    std_exhaust_curtain = curtain_area_mm2(float(std['valve_out']), float(std['lift_std']) * 0.92, max(int(std['valves'] / 2), 1))
-    std_tb_area = area_circle_mm2(float(std['venturi']))
+    pspeeds, vel_in_list, vel_out_list, ve_list = [], [], [], []
+    std_cc = (0.785398 * float(std["bore"]) ** 2 * float(std["stroke"])) / 1000.0
+    std_cr = (std_cc + float(std["v_head"])) / float(std["v_head"])
+    std_avg_dur = float(std["dur_std"])
+    std_lift_ratio = safe_div(float(std["lift_std"]), float(std["valve_in"]), 0.0)
+    std_intake_curtain = curtain_area_mm2(float(std["valve_in"]), float(std["lift_std"]), int(std["valves"]))
+    std_exhaust_curtain = curtain_area_mm2(float(std["valve_out"]), float(std["lift_std"]) * 0.92, max(int(std["valves"] / 2), 1))
+    std_tb_area = area_circle_mm2(float(std["venturi"]))
     std_intake_area = harmonic_mean(std_tb_area * 0.95, std_intake_curtain * 0.80)
     std_exhaust_area = harmonic_mean(std_tb_area * 0.82, std_exhaust_curtain * 0.78)
     drive_factor = 0.985 if d_type == "CVT" else 1.015
     material_factor = 1.0 if material == "Casting" else 1.02
     afr_target = 12.8
     dur_delta = float(dur_in) - std_avg_dur
-    lift_delta = float(v_lift) - float(std['lift_std'])
-    flow_delta = float(venturi) - float(std['venturi'])
-    adj_peak_rpm = float(std['peak_rpm']) + (dur_delta * 42.0) + (lift_delta * 165.0) + (flow_delta * 26.0)
+    lift_delta = float(v_lift) - float(std["lift_std"])
+    flow_delta = float(venturi) - float(std["venturi"])
+    adj_peak_rpm = float(std["peak_rpm"]) + (dur_delta * 42.0) + (lift_delta * 165.0) + (flow_delta * 26.0)
     adj_peak_rpm = clamp(adj_peak_rpm, 3500.0, float(rpm_limit) + 1200.0)
 
     for r in rpms:
@@ -284,7 +305,7 @@ def calculate_axis_v22(cc, bore, stroke, cr, rpm_limit, v_in, n_v_in, v_out, n_v
             ve *= 0.90 + (flow_ratio_in * 0.10)
         elif flow_ratio_in > 1.45:
             ve *= 0.95
-        hp = float(std['hp_std'])
+        hp = float(std["hp_std"])
         hp *= cc_factor * flow_factor * cam_factor * lift_factor * afr_factor * cr_factor * rpm_factor * material_factor * drive_factor
         hp *= (0.78 + 0.42 * ve)
         hp *= (1.0 - friction_loss)
@@ -302,14 +323,11 @@ def calculate_axis_v22(cc, bore, stroke, cr, rpm_limit, v_in, n_v_in, v_out, n_v
         vel_out_list.append(round(vel_out, 2))
         hps.append(round(hp, 2))
         torques.append(round((hp * 7127.0) / r if r > 0 else 0, 2))
+
     idx_hp = int(np.argmax(hps))
     idx_nm = int(np.argmax(torques))
-    peak_gsin = vel_in_list[idx_hp]
-    peak_gsout = vel_out_list[idx_hp]
-    peak_pspeed = pspeeds[idx_hp]
-    return rpms, hps, torques, peak_pspeed, peak_gsin, peak_gsout, vel_in_list, vel_out_list, ve_list, idx_hp, idx_nm
+    return rpms, hps, torques, pspeeds[idx_hp], vel_in_list[idx_hp], vel_out_list[idx_hp], vel_in_list, vel_out_list, ve_list, idx_hp, idx_nm
 
-# --- 5. SIDEBAR ---
 with st.sidebar:
     st.header("1️⃣ MOTOR CONFIG")
     sel_merk = st.selectbox("Merk", list(DATABASE_REF.keys()))
@@ -321,22 +339,22 @@ with st.sidebar:
     with st.expander("🛠️ Perimeter 1 (Standar)", expanded=True):
         raw_label = st.text_input("Label Run", value=f"Run {len(st.session_state.history)+1}")
         full_label = f"{raw_label} {sel_model.split(' ')[0]}"
-        in_bore = st.number_input(f"Bore (std: {std['bore']})", value=float(std['bore']), step=0.1)
-        in_stroke = st.number_input(f"Stroke (std: {std['stroke']})", value=float(std['stroke']), step=0.1)
-        in_vhead = st.number_input(f"Vol Head (std: {std['v_head']})", value=float(std['v_head']), step=0.1)
-        in_rpm = st.number_input(f"Limit RPM (std: {std['limit_std']})", value=int(std['limit_std']), step=100)
+        in_bore = st.number_input(f"Bore (std: {std['bore']})", value=float(std["bore"]), step=0.1)
+        in_stroke = st.number_input(f"Stroke (std: {std['stroke']})", value=float(std["stroke"]), step=0.1)
+        in_vhead = st.number_input(f"Vol Head (std: {std['v_head']})", value=float(std["v_head"]), step=0.1)
+        in_rpm = st.number_input(f"Limit RPM (std: {std['limit_std']})", value=int(std["limit_std"]), step=100)
         cc_placeholder = st.empty()
     with st.expander("🧪 Detail Expert Tuning", expanded=True):
-        in_v_in = st.number_input(f"Klep In (std: {std['valve_in']})", value=float(std['valve_in']), step=0.1)
-        default_in_idx = [1, 2, 4].index(std['valves']) if std['valves'] in [1, 2, 4] else 1
+        in_v_in = st.number_input(f"Klep In (std: {std['valve_in']})", value=float(std["valve_in"]), step=0.1)
+        default_in_idx = [1, 2, 4].index(std["valves"]) if std["valves"] in [1, 2, 4] else 1
         in_n_v_in = st.selectbox("Jml Klep In", [1, 2, 4], index=default_in_idx)
-        in_v_out = st.number_input(f"Klep Out (std: {std['valve_out']})", value=float(std['valve_out']), step=0.1)
-        out_default_idx = [1, 2, 4].index(max(min(std['valves'], 2), 1)) if max(min(std['valves'], 2), 1) in [1, 2, 4] else 1
+        in_v_out = st.number_input(f"Klep Out (std: {std['valve_out']})", value=float(std["valve_out"]), step=0.1)
+        out_default_idx = [1, 2, 4].index(max(min(std["valves"], 2), 1)) if max(min(std["valves"], 2), 1) in [1, 2, 4] else 1
         in_n_v_out = st.selectbox("Jml Klep Out", [1, 2, 4], index=out_default_idx)
-        in_venturi = st.number_input(f"Venturi/TB (std: {std['venturi']})", value=float(std['venturi']), step=0.5)
-        in_v_lift = st.number_input(f"Lift (std: {std['lift_std']})", value=float(std['lift_std']), step=0.1)
-        in_dur_in = st.number_input(f"Durasi In (std: {std['dur_std']})", value=float(std['dur_std']), step=1.0)
-        in_dur_out = st.number_input(f"Durasi Out (std: {std['dur_std']})", value=float(std['dur_std']), step=1.0)
+        in_venturi = st.number_input(f"Venturi/TB (std: {std['venturi']})", value=float(std["venturi"]), step=0.5)
+        in_v_lift = st.number_input(f"Lift (std: {std['lift_std']})", value=float(std["lift_std"]), step=0.1)
+        in_dur_in = st.number_input(f"Durasi In (std: {std['dur_std']})", value=float(std["dur_std"]), step=1.0)
+        in_dur_out = st.number_input(f"Durasi Out (std: {std['dur_std']})", value=float(std["dur_std"]), step=1.0)
         in_afr = st.number_input("AFR (Rasio Udara/BBM)", min_value=11.0, max_value=15.0, value=12.8, step=0.1)
         in_material = st.selectbox("Piston", ["Casting", "Forged"])
         in_d_type = st.selectbox("Penggerak", ["CVT", "Rantai"])
@@ -345,7 +363,6 @@ with st.sidebar:
     in_joki = st.number_input("Berat Joki (kg)", value=60.0)
     run_btn = st.button("🚀 ANALYZE & RUN AXIS")
 
-# --- 6. MAIN DISPLAY ---
 st.title("📟 Hiar Lima Pendawa Tuning")
 
 if run_btn:
@@ -357,18 +374,15 @@ if run_btn:
     )
     hp_max = max(hps)
     nm_max = max(torques)
-    pwr = max((hp_max / (float(std['weight_std']) + float(in_joki))) * 10.0, 0.25)
+    pwr = max((hp_max / (float(std["weight_std"]) + float(in_joki))) * 10.0, 0.25)
     st.session_state.history.append({
         "Run": full_label, "CC": cc_calc, "CR": cr_calc, "AFR": in_afr,
         "Max_HP": hp_max, "RPM_HP": rpms[idx_hp], "Max_Nm": nm_max, "RPM_Nm": rpms[idx_nm],
         "Velocity": peak_gsin, "Velocity_Out": peak_gsout, "PistonSpeed": peak_pspeed,
         "gsin": peak_gsin, "gsout": peak_gsout, "pspeed": peak_pspeed,
-        "rpms": rpms, "hps": hps, "torques": torques,
-        "vel_in_list": vel_in_list, "vel_out_list": vel_out_list, "ve_list": ve_list,
-        "v_in": in_v_in, "v_out": in_v_out, "bore": in_bore, "stroke": in_stroke,
-        "lift": in_v_lift, "venturi": in_venturi, "material": in_material,
-        "T100": 6.5 / math.pow(pwr, 0.45), "T201": 10.2 / math.pow(pwr, 0.45),
-        "T402": 16.5 / math.pow(pwr, 0.45), "T1000": 32.8 / math.pow(pwr, 0.45)
+        "rpms": rpms, "hps": hps, "torques": torques, "vel_in_list": vel_in_list, "vel_out_list": vel_out_list, "ve_list": ve_list,
+        "v_in": in_v_in, "v_out": in_v_out, "bore": in_bore, "stroke": in_stroke, "lift": in_v_lift, "venturi": in_venturi, "material": in_material,
+        "T100": 6.5 / math.pow(pwr, 0.45), "T201": 10.2 / math.pow(pwr, 0.45), "T402": 16.5 / math.pow(pwr, 0.45), "T1000": 32.8 / math.pow(pwr, 0.45)
     })
 
 if st.session_state.history:
@@ -387,60 +401,81 @@ if st.session_state.history:
     speed_ph = gauge_mid.empty()
     graph_ph = st.empty()
 
-    idle_frames = [1200] * 12
-    warmup_frames = list(np.linspace(1200, 1800, 8))
+    idle_frames = [0] * 10
+    warmup_frames = list(np.linspace(0, 1800, 10))
     blip_frames = list(np.linspace(1800, 3200, 6)) + list(np.linspace(3200, 1800, 5))
-    rise_frames = list(np.linspace(1800, latest['RPM_HP'], 22))
-    hold_frames = [latest['RPM_HP']] * 6
-    sweep_frames = list(np.linspace(latest['RPM_HP'], float(latest['RPM_Nm']), 12))
-    limiter_frames = []
-    limiter_base = float(in_rpm)
-    for _ in range(6):
-        limiter_frames += [limiter_base * 0.97, limiter_base, limiter_base * 1.01, limiter_base * 0.985]
-    cut_frames = list(np.linspace(float(latest['rpms'][-1]), 1500, 10))
-    anim_rpms = idle_frames + warmup_frames + blip_frames + rise_frames + hold_frames + sweep_frames + limiter_frames + cut_frames
+    rise_frames = list(np.linspace(1800, latest["RPM_HP"], 18))
+    hold_frames = [float(latest["RPM_HP"])] * 6
+    sweep_frames = list(np.linspace(float(latest["RPM_HP"]), float(in_rpm), 14))
+    limiter_bounce = []
+    for _ in range(4):
+        limiter_bounce += [float(in_rpm) * 0.97, float(in_rpm), float(in_rpm) * 1.01, float(in_rpm) * 0.985]
+    cooldown_frames = list(np.linspace(float(in_rpm), 1800, 10))
+    final_idle_frames = [1800] * 8
+    stop_frames = list(np.linspace(1800, 0, 8))
+    anim_rpms = idle_frames + warmup_frames + blip_frames + rise_frames + hold_frames + sweep_frames + limiter_bounce + cooldown_frames + final_idle_frames + stop_frames
 
     history_idx = len(st.session_state.history) - 1
     current_run = st.session_state.history[history_idx]
-    current_run['live_pos'] = 0
+    current_run["live_pos"] = 0
+    speed_max = max(120.0, 60.0 + current_run["Max_HP"] * 5.0)
 
     for frame_idx, rpm_now in enumerate(anim_rpms):
-        current_run['live_pos'] = min(int((rpm_now / max(float(current_run['rpms'][-1]), 1.0)) * (len(current_run['rpms']) - 1)), len(current_run['rpms']) - 1)
-        hp_now = interpolate_value(rpm_now, current_run['rpms'], current_run['hps'])
-        nm_now = interpolate_value(rpm_now, current_run['rpms'], current_run['torques'])
-        speed_max = max(120.0, 60.0 + current_run['Max_HP'] * 5.0)
-        speed_now = clamp((rpm_now / max(float(current_run['rpms'][-1]), 1.0)) * speed_max, 0.0, speed_max)
+        current_run["live_pos"] = min(int((max(rpm_now, 1.0) / max(float(current_run["rpms"][-1]), 1.0)) * (len(current_run["rpms"]) - 1)), len(current_run["rpms"]) - 1)
+        hp_now = float(np.interp(rpm_now, current_run["rpms"], current_run["hps"]))
+        nm_now = float(np.interp(rpm_now, current_run["rpms"], current_run["torques"]))
+        speed_now = clamp((rpm_now / max(float(current_run["rpms"][-1]), 1.0)) * speed_max, 0.0, speed_max)
 
-        tach_fig = build_analog_gauge(rpm_now, max(float(in_rpm) + 1500.0, rpm_now + 200.0), "Tachometer", "RPM", float(in_rpm), max(0.0, float(latest['RPM_HP']) * 0.55), float(in_rpm) * 0.92)
-        speed_fig = build_analog_gauge(speed_now, speed_max, "Speedometer", "km/h", speed_max * 0.82, speed_max * 0.35, speed_max * 0.68)
-        live_graph = build_live_graph(st.session_state.history, current_idx=history_idx, current_rpm=rpm_now, current_hp=hp_now, current_nm=nm_now)
-        render_engine_audio(rpm_now, float(in_rpm))
-        tach_ph.plotly_chart(tach_fig, use_container_width=True, key=f"tach_{history_idx}_{frame_idx}")
-        speed_ph.plotly_chart(speed_fig, use_container_width=True, key=f"speed_{history_idx}_{frame_idx}")
-        graph_ph.plotly_chart(live_graph, use_container_width=True, key=f"graph_{history_idx}_{frame_idx}")
-        time.sleep(0.04)
+        tach_show = 0 if frame_idx == 0 else rpm_now
+        speed_show = 0 if frame_idx == 0 else speed_now
 
-    tach_ph.plotly_chart(build_analog_gauge(float(latest['RPM_HP']), max(float(in_rpm) + 1500.0, float(latest['RPM_HP']) + 200.0), "Tachometer", "RPM", float(in_rpm), float(latest['RPM_HP']) * 0.55, float(in_rpm) * 0.92), use_container_width=True, key="tach_final")
-    speed_max_final = max(120.0, 60.0 + latest['Max_HP'] * 5.0)
-    speed_ph.plotly_chart(build_analog_gauge(min(speed_max_final * 0.92, speed_max_final), speed_max_final, "Speedometer", "km/h", speed_max_final * 0.82, speed_max_final * 0.35, speed_max_final * 0.68), use_container_width=True, key="speed_final")
-    graph_ph.plotly_chart(build_live_graph(st.session_state.history, current_idx=history_idx, current_rpm=latest['RPM_HP'], current_hp=latest['Max_HP'], current_nm=latest['Max_Nm']), use_container_width=True, key="graph_final")
+        tach_ph.markdown(build_needle_gauge("Tachometer", tach_show, max(float(in_rpm) + 1500.0, 1500.0), "RPM", float(in_rpm), 1500.0, max(1800.0, float(in_rpm) * 0.92)), unsafe_allow_html=True)
+        speed_ph.markdown(build_needle_gauge("Speedometer", speed_show, speed_max, "km/h", speed_max * 0.82, speed_max * 0.35, speed_max * 0.68), unsafe_allow_html=True)
+        graph_ph.plotly_chart(build_live_graph(st.session_state.history, current_idx=history_idx, current_rpm=max(rpm_now, 0), current_hp=hp_now, current_nm=nm_now), use_container_width=True, key=f"graph_{history_idx}_{frame_idx}")
+        render_engine_audio_once(rpm_now, float(in_rpm))
+
+        if rpm_now <= 0:
+            time.sleep(0.12)
+        elif rpm_now < 1800:
+            time.sleep(0.10)
+        elif rpm_now < float(latest["RPM_HP"]):
+            time.sleep(0.055)
+        elif rpm_now < float(in_rpm):
+            time.sleep(0.045)
+        else:
+            time.sleep(0.040)
+
+    for i in range(6):
+        tach_ph.markdown(build_needle_gauge("Tachometer", 1800, max(float(in_rpm) + 1500.0, 1500.0), "RPM", float(in_rpm), 1500.0, max(1800.0, float(in_rpm) * 0.92)), unsafe_allow_html=True)
+        speed_ph.markdown(build_needle_gauge("Speedometer", 0, speed_max, "km/h", speed_max * 0.82, speed_max * 0.35, speed_max * 0.68), unsafe_allow_html=True)
+        graph_ph.plotly_chart(build_live_graph(st.session_state.history, current_idx=history_idx, current_rpm=1800, current_hp=float(np.interp(1800, current_run["rpms"], current_run["hps"])), current_nm=float(np.interp(1800, current_run["rpms"], current_run["torques"]))), use_container_width=True, key=f"graph_idle_{i}")
+        time.sleep(0.18)
 
     df = pd.DataFrame(st.session_state.history)
     st.write("### 📊 Performance Dyno Result")
     df_perf = df[["Run", "CC", "CR", "AFR", "Max_HP", "RPM_HP", "Max_Nm", "RPM_Nm", "Velocity"]].copy()
-    st.dataframe(df_perf.style.format({"CC": "{:.2f}", "CR": "{:.2f}", "AFR": "{:.2f}", "Max_HP": "{:.2f}", "Max_Nm": "{:.2f}", "Velocity": "{:.2f}"}).map(lambda v: style_state(v, "cr"), subset=["CR"]).map(lambda v: style_state(v, "vel"), subset=["Velocity"]).map(lambda v: style_state(v, "afr"), subset=["AFR"]), hide_index=True, use_container_width=True)
+    st.dataframe(
+        df_perf.style.format({"CC": "{:.2f}", "CR": "{:.2f}", "AFR": "{:.2f}", "Max_HP": "{:.2f}", "Max_Nm": "{:.2f}", "Velocity": "{:.2f}"})
+        .map(lambda v: style_state(v, "cr"), subset=["CR"])
+        .map(lambda v: style_state(v, "vel"), subset=["Velocity"])
+        .map(lambda v: style_state(v, "afr"), subset=["AFR"]),
+        hide_index=True,
+        use_container_width=True
+    )
 
     st.write("### 🏁 Drag Simulation Predictions")
     df_drag = df[["Run", "T100", "T201", "T402", "T1000"]].rename(columns={"T100": "100m", "T201": "201m", "T402": "402m", "T1000": "1000m"})
     st.dataframe(df_drag.style.format({"100m": "{:.2f}s", "201m": "{:.2f}s", "402m": "{:.2f}s", "1000m": "{:.2f}s"}), hide_index=True, use_container_width=True)
 
-    st.divider(); st.header("🏁 Axis Expert Physics Analysis")
+    st.divider()
+    st.header("🏁 Axis Expert Physics Analysis")
+
     c1, c2, c3 = st.columns(3)
-    lift_ratio = safe_div(latest['lift'], latest['v_in'], 0.0)
-    valve_area_index = safe_div(curtain_area_mm2(latest['v_in'], latest['lift'], 2), area_circle_mm2(latest['venturi']), 0.0)
-    sig = param_signature(latest['CC'], latest['CR'], latest['AFR'], latest['Max_HP'], latest['RPM_HP'], latest['Max_Nm'], latest['Velocity'], latest['Velocity_Out'], latest['PistonSpeed'], latest['bore'], latest['stroke'], latest['v_in'], latest['v_out'], latest['lift'], latest['venturi'], latest['material'])
-    cr_state = state_from_value(latest['CR'], 9.5, 13.8, 10.0, 12.8)
-    vel_state = state_from_value(latest['Velocity'], 90.0, 99.9, 100.0, 110.0)
+    lift_ratio = safe_div(latest["lift"], latest["v_in"], 0.0)
+    valve_area_index = safe_div(curtain_area_mm2(latest["v_in"], latest["lift"], 2), area_circle_mm2(latest["venturi"]), 0.0)
+    sig = param_signature(latest["CC"], latest["CR"], latest["AFR"], latest["Max_HP"], latest["RPM_HP"], latest["Max_Nm"], latest["Velocity"], latest["Velocity_Out"], latest["PistonSpeed"], latest["bore"], latest["stroke"], latest["v_in"], latest["v_out"], latest["lift"], latest["venturi"], latest["material"])
+    cr_state = state_from_value(latest["CR"], 9.5, 13.8, 10.0, 12.8)
+    vel_state = state_from_value(latest["Velocity"], 90.0, 99.9, 100.0, 110.0)
 
     with c1:
         st.subheader("🧐 1. Analisa Spek Mesin")
@@ -449,7 +484,7 @@ if st.session_state.history:
             f"Displacement terukur **{latest['CC']:.2f} cc**. Rasio kompresi aktual terbaca **{latest['CR']:.2f}:1**.",
             f"Spek mesin mengarah ke **{latest['CC']:.2f} cc** dan CR **{latest['CR']:.2f}:1** dengan karakter kompresi {('ringan' if latest['CR'] < 11 else 'padat' if latest['CR'] < 13 else 'agresif')}.",
             f"Volume kerja **{latest['CC']:.2f} cc** dan CR **{latest['CR']:.2f}:1** menandakan build ini {('lebih aman' if cr_state == 'safe' else 'ideal' if cr_state == 'optimal' else 'berisiko')}."
-        ], sig, latest['CC'], latest['CR'])
+        ], sig, latest["CC"], latest["CR"])
         st.markdown(f"- {analisa_mesin}", unsafe_allow_html=True)
         st.markdown(f"- Efisiensi lift terhadap klep in berada di **{(lift_ratio * 100):.1f}%** ({lift_ratio:.3f}).")
         st.markdown(f"- Indeks area klep vs venturi berada di **{valve_area_index:.3f}**.")
@@ -458,158 +493,177 @@ if st.session_state.history:
 
     with c2:
         st.subheader("📚 2. Saran Ahli (Teori)")
-        if latest['Velocity'] > 115.0:
+        if latest["Velocity"] > 115.0:
             msg = choose_variant([
                 f"Velocity {latest['Velocity']:.2f} m/s sudah terlalu liar. Port mulai bekerja seperti sumbatan, VE justru turun di rpm atas.",
                 f"Gas speed {latest['Velocity']:.2f} m/s menandakan choke flow. Nafas atas panjang di atas kertas, tapi habis di real flow.",
                 f"Kecepatan aliran {latest['Velocity']:.2f} m/s melewati zona efisien. Campuran mulai pecah dan tenaga puncak tidak stabil."
-            ], sig, latest['Velocity'])
+            ], sig, latest["Velocity"])
             st.markdown(f"<span style='color:#ff4d4f'>{msg}</span>", unsafe_allow_html=True)
-        elif latest['Velocity'] < 90.0:
+        elif latest["Velocity"] < 90.0:
             msg = choose_variant([
                 f"Velocity {latest['Velocity']:.2f} m/s masih terlalu lambat. Scavenging kurang hidup dan torsi bawah terasa kosong.",
                 f"Gas speed {latest['Velocity']:.2f} m/s belum cukup untuk mengunci inersia udara. Respons awal masih bisa dipadatkan.",
                 f"Aliran {latest['Velocity']:.2f} m/s berada di bawah jendela kerja ideal. Intake perlu dipadatkan untuk menaikkan momentum charge."
-            ], sig, latest['Velocity'])
+            ], sig, latest["Velocity"])
             st.markdown(f"<span style='color:#3ba3ff'>{msg}</span>", unsafe_allow_html=True)
         else:
             msg = choose_variant([
                 f"Velocity {latest['Velocity']:.2f} m/s berada di zona optimal. VE cenderung hidup di tengah sampai atas.",
                 f"Gas speed {latest['Velocity']:.2f} m/s pas. Ini zona yang biasanya paling enak untuk powerband CVT.",
                 f"Kecepatan aliran {latest['Velocity']:.2f} m/s sudah mendekati sweet spot. Mesin cenderung padat dan responsif."
-            ], sig, latest['Velocity'])
+            ], sig, latest["Velocity"])
             st.markdown(f"<span style='color:#39d353'>{msg}</span>", unsafe_allow_html=True)
+
         if lift_ratio < 0.24:
             msg = choose_variant([
                 f"Rasio lift {lift_ratio:.3f} terlalu kecil untuk ukuran klep {latest['v_in']} mm. Katup belum dimanfaatkan penuh.",
                 f"Lift ratio {lift_ratio:.3f} menunjukkan cam masih terlalu jinak. Nafas akan tertahan oleh durasi buka yang pendek.",
                 f"Efektivitas lift {lift_ratio:.3f} belum cukup agresif. Area buka klep belum sebanding dengan kebutuhan flow."
-            ], sig, lift_ratio, latest['v_in'])
+            ], sig, lift_ratio, latest["v_in"])
             st.markdown(f"<span style='color:#3ba3ff'>{msg}</span>", unsafe_allow_html=True)
         elif 0.24 <= lift_ratio <= 0.33:
             msg = choose_variant([
                 f"Rasio lift {lift_ratio:.3f} sudah berada di area kerja yang sehat untuk head ini.",
                 f"Lift ratio {lift_ratio:.3f} cukup ideal. Ini biasanya bikin flow enak tanpa terlalu mengorbankan durabilitas.",
                 f"Efektivitas lift {lift_ratio:.3f} pas untuk karakter mesin yang ingin responsif namun tetap terkontrol."
-            ], sig, lift_ratio, latest['v_in'])
+            ], sig, lift_ratio, latest["v_in"])
             st.markdown(f"<span style='color:#39d353'>{msg}</span>", unsafe_allow_html=True)
         else:
             msg = choose_variant([
                 f"Rasio lift {lift_ratio:.3f} sudah agresif. Mekanik perlu cek stabilitas valve train dan per klep.",
                 f"Lift ratio {lift_ratio:.3f} terlalu tinggi untuk sebagian setup harian. Friksi dan valve control perlu perhatian ekstra.",
                 f"Rasio lift {lift_ratio:.3f} mendekati batas keras. Potensi valve floating mulai nyata saat rpm naik."
-            ], sig, lift_ratio, latest['v_in'])
+            ], sig, lift_ratio, latest["v_in"])
             st.markdown(f"<span style='color:#ff4d4f'>{msg}</span>", unsafe_allow_html=True)
-        if latest['PistonSpeed'] > 23.0:
+
+        if latest["PistonSpeed"] > 23.0:
             msg = choose_variant([
                 f"Piston speed {latest['PistonSpeed']:.2f} m/s sudah terlalu dekat dengan batas aman untuk durasi panjang.",
                 f"Kecepatan piston {latest['PistonSpeed']:.2f} m/s menuntut oli dan pendinginan yang lebih serius.",
                 f"Piston speed {latest['PistonSpeed']:.2f} m/s masuk wilayah stres mekanik tinggi. Umur part akan lebih cepat terkikis."
-            ], sig, latest['PistonSpeed'])
+            ], sig, latest["PistonSpeed"])
             st.markdown(f"<span style='color:#ff4d4f'>{msg}</span>", unsafe_allow_html=True)
-        elif latest['PistonSpeed'] > 20.0:
+        elif latest["PistonSpeed"] > 20.0:
             msg = choose_variant([
                 f"Piston speed {latest['PistonSpeed']:.2f} m/s masih aman, tapi sudah tidak santai.",
                 f"Kecepatan piston {latest['PistonSpeed']:.2f} m/s berada di zona kerja keras namun masih bisa dipakai.",
                 f"Piston speed {latest['PistonSpeed']:.2f} m/s cukup cepat. Setting oli dan per klep mulai penting."
-            ], sig, latest['PistonSpeed'])
+            ], sig, latest["PistonSpeed"])
             st.markdown(f"<span style='color:#3ba3ff'>{msg}</span>", unsafe_allow_html=True)
         else:
             msg = choose_variant([
                 f"Piston speed {latest['PistonSpeed']:.2f} m/s masih nyaman untuk karakter CVT.",
                 f"Kecepatan piston {latest['PistonSpeed']:.2f} m/s berada di zona aman untuk sesi panjang.",
                 f"Piston speed {latest['PistonSpeed']:.2f} m/s relatif ideal dan tidak memaksa komponen berlebihan."
-            ], sig, latest['PistonSpeed'])
+            ], sig, latest["PistonSpeed"])
             st.markdown(f"<span style='color:#39d353'>{msg}</span>", unsafe_allow_html=True)
 
     with c3:
         st.subheader("🛠️ 3. Solusi & Rekomendasi Part")
         rekomendasi_ditemukan = False
-        if latest['Velocity'] > 115.0:
+        if latest["Velocity"] > 115.0:
             msg = choose_variant([
                 f"🔹 **Intake/TB:** Perbesar throttle body atau rapikan porting karena velocity {latest['Velocity']:.2f} m/s sudah terlalu padat.",
                 f"🔹 **Manifold/Port:** Head mulai tersumbat. Buka jalur intake agar aliran tidak menabrak batas {latest['Velocity']:.2f} m/s.",
                 f"🔹 **Intake:** Kombinasi TB dan port sekarang terlalu sempit untuk rpm atas. Perlu enlarge bertahap, jangan brutal."
-            ], sig, latest['Velocity'], latest['venturi'])
-            st.info(msg); rekomendasi_ditemukan = True
-        elif latest['Velocity'] < 90.0:
+            ], sig, latest["Velocity"], latest["venturi"])
+            st.info(msg)
+            rekomendasi_ditemukan = True
+        elif latest["Velocity"] < 90.0:
             msg = choose_variant([
                 f"🔹 **Manifold:** Pakai intake manifold yang sedikit lebih sempit atau lebih pendek untuk menaikkan velocity ke zona 100-110 m/s.",
                 f"🔹 **Intake Runner:** Velocity terlalu rendah. Kecilkan volume runner agar momentum charge naik.",
                 f"🔹 **Throttle Body:** TB terlalu lega untuk karakter ini. Sempitkan sedikit supaya respons bawah tidak ngempos."
-            ], sig, latest['Velocity'], latest['venturi'])
-            st.info(msg); rekomendasi_ditemukan = True
-        if latest['CR'] > 13.2 and latest['material'] == "Casting":
+            ], sig, latest["Velocity"], latest["venturi"])
+            st.info(msg)
+            rekomendasi_ditemukan = True
+
+        if latest["CR"] > 13.2 and latest["material"] == "Casting":
             msg = choose_variant([
                 f"🔹 **Piston:** Ganti ke forged piston karena CR {latest['CR']:.2f}:1 terlalu agresif untuk casting.",
                 f"🔹 **Compression Safety:** Dengan CR {latest['CR']:.2f}:1, piston casting mulai rawan panas dan retak mikro.",
                 f"🔹 **Top End:** Untuk kompresi {latest['CR']:.2f}:1, forged piston lebih aman daripada casting biasa."
-            ], sig, latest['CR'], latest['material'])
-            st.error(msg); rekomendasi_ditemukan = True
-        elif latest['CR'] < 10.0:
+            ], sig, latest["CR"], latest["material"])
+            st.error(msg)
+            rekomendasi_ditemukan = True
+        elif latest["CR"] < 10.0:
             msg = choose_variant([
                 f"🔹 **Kompresi:** CR {latest['CR']:.2f}:1 terlalu rendah. Naikkan volume head agar pembakaran lebih padat.",
                 f"🔹 **Head Volume:** Ruang bakar masih terlalu besar. CR {latest['CR']:.2f}:1 perlu dinaikkan untuk mengisi torsi.",
                 f"🔹 **Compression Build:** Turunkan volume head atau ubah dome piston karena kompresi masih terlalu jinak."
-            ], sig, latest['CR'])
-            st.info(msg); rekomendasi_ditemukan = True
+            ], sig, latest["CR"])
+            st.info(msg)
+            rekomendasi_ditemukan = True
+
         if lift_ratio < 0.26:
-            target_lift = latest['v_in'] * 0.30
+            target_lift = latest["v_in"] * 0.30
             msg = choose_variant([
                 f"🔹 **Noken As:** Cari profil yang memberi lift minimal **{target_lift:.2f} mm**.",
                 f"🔹 **Camshaft:** Lift sekarang belum cukup mengisi klep. Naikkan lift untuk mengejar curtain area.",
                 f"🔹 **Noken As:** Durasi boleh ada, tapi lift masih terlalu jinak. Profil high-lift akan lebih cocok."
-            ], sig, target_lift, latest['v_in'])
-            st.info(msg); rekomendasi_ditemukan = True
+            ], sig, target_lift, latest["v_in"])
+            st.info(msg)
+            rekomendasi_ditemukan = True
         elif lift_ratio > 0.34:
             msg = choose_variant([
                 f"🔹 **Noken As:** Lift terlalu tinggi. Cek per klep dan geometri rocker/valvetrain.",
                 f"🔹 **Camshaft:** Profil sekarang agresif. Pastikan spring rate cukup supaya valve tidak floating.",
                 f"🔹 **Valve Train:** Lift besar butuh per klep lebih keras dan setup clearance yang rapi."
             ], sig, lift_ratio)
-            st.warning(msg); rekomendasi_ditemukan = True
-        if latest['PistonSpeed'] > 22.0 or lift_ratio > 0.33:
+            st.warning(msg)
+            rekomendasi_ditemukan = True
+
+        if latest["PistonSpeed"] > 22.0 or lift_ratio > 0.33:
             msg = choose_variant([
                 f"🔹 **Per Klep:** Gunakan per klep racing/high tension untuk menjaga valve control di rpm tinggi.",
                 f"🔹 **Valve Spring:** Spring standar terlalu lembek untuk kombinasi speed {latest['PistonSpeed']:.2f} m/s dan lift ratio {lift_ratio:.3f}.",
                 f"🔹 **Klep Train:** Upgrade per klep wajib jika ingin rpm naik tanpa valve floating."
-            ], sig, latest['PistonSpeed'], lift_ratio)
-            st.warning(msg); rekomendasi_ditemukan = True
-        if latest['AFR'] > 13.5:
+            ], sig, latest["PistonSpeed"], lift_ratio)
+            st.warning(msg)
+            rekomendasi_ditemukan = True
+
+        if latest["AFR"] > 13.5:
             msg = choose_variant([
                 f"🔹 **Sistem BBM:** AFR {latest['AFR']:.1f} terlalu kering. Tambah debit injektor atau seting ulang mapping.",
                 f"🔹 **Fueling:** Campuran {latest['AFR']:.1f} cenderung miskin. Mesin bisa panas dan tenaga tidak stabil.",
                 f"🔹 **Injector/BBM:** Tambah suplai bahan bakar karena AFR {latest['AFR']:.1f} sudah melewati area aman."
-            ], sig, latest['AFR'])
-            st.warning(msg); rekomendasi_ditemukan = True
-        elif latest['AFR'] < 12.0:
+            ], sig, latest["AFR"])
+            st.warning(msg)
+            rekomendasi_ditemukan = True
+        elif latest["AFR"] < 12.0:
             msg = choose_variant([
                 f"🔹 **Sistem BBM:** AFR {latest['AFR']:.1f} terlalu basah. Bahan bakar kebanyakan, respons jadi berat.",
                 f"🔹 **Fueling:** Campuran terlalu kaya. Kurangi debit supaya pembakaran lebih bersih.",
                 f"🔹 **Injector/Spuyer:** AFR {latest['AFR']:.1f} perlu diringankan agar mesin tidak membuang tenaga."
-            ], sig, latest['AFR'])
-            st.info(msg); rekomendasi_ditemukan = True
-        if latest['Velocity_Out'] > 118.0:
+            ], sig, latest["AFR"])
+            st.info(msg)
+            rekomendasi_ditemukan = True
+
+        if latest["Velocity_Out"] > 118.0:
             msg = choose_variant([
                 f"🔹 **Exhaust:** Jalur buang terlalu padat. Knalpot / leher perlu dibuka sedikit agar backpressure turun.",
                 f"🔹 **Outlet Flow:** Velocity out {latest['Velocity_Out']:.2f} m/s menandakan exhaust terlalu menahan gas.",
                 f"🔹 **Knalpot:** Buang gas sudah terlalu keras. Perbesar leher atau ubah diffuser bila perlu."
-            ], sig, latest['Velocity_Out'])
-            st.error(msg); rekomendasi_ditemukan = True
-        elif latest['Velocity_Out'] < 92.0:
+            ], sig, latest["Velocity_Out"])
+            st.error(msg)
+            rekomendasi_ditemukan = True
+        elif latest["Velocity_Out"] < 92.0:
             msg = choose_variant([
                 f"🔹 **Exhaust:** Buang gas terlalu lambat. Diameter leher bisa dipersempit sedikit untuk bantu scavenging.",
                 f"🔹 **Outlet Flow:** Velocity out {latest['Velocity_Out']:.2f} m/s terlalu rendah untuk mengusir gas sisa.",
                 f"🔹 **Knalpot:** Exhaust cenderung terlalu lega. Sedikit penyempitan bisa bantu mid-range."
-            ], sig, latest['Velocity_Out'])
-            st.info(msg); rekomendasi_ditemukan = True
+            ], sig, latest["Velocity_Out"])
+            st.info(msg)
+            rekomendasi_ditemukan = True
+
         if not rekomendasi_ditemukan:
             msg = choose_variant([
                 "✅ Setingan saat ini seimbang dan belum butuh part besar-besaran.",
                 "✅ Kombinasi bore, lift, dan AFR sudah cukup rapi untuk karakter yang dipilih.",
                 "✅ Tidak ada part mendesak. Tinggal fine tuning agar respons lebih tajam.",
                 "✅ Paket tuning sudah saling mengisi; perbaikan kecil saja akan terasa di dyno."
-            ], sig, latest['CC'], latest['CR'], latest['Velocity'], latest['AFR'])
+            ], sig, latest["CC"], latest["CR"], latest["Velocity"], latest["AFR"])
             st.success(msg)
 
 st.write("---")
