@@ -777,4 +777,3 @@ if st.session_state.drag_history and not run_drag_btn:
 
 st.write("---")
 st.error("⚠️ **DISCLAIMER:** Perhitungan hanya estimasi kalkulasi data, hasil nyata bergantung pada efisiensi volumetrik, suhu, kualitas part, dan setting lapangan.")
-"}]
