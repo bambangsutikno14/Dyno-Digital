@@ -86,7 +86,6 @@ if "drag_history" not in st.session_state:
 if "mute_audio" not in st.session_state:
     st.session_state.mute_audio = False
 
-
 # =========================================================
 # HELPERS
 # =========================================================
@@ -201,7 +200,7 @@ def needle_gauge_html(label, value, max_value, unit, redline=None, optimal_low=N
           <text x="190" y="105" fill="#9aa4b2" font-size="16" font-family="Arial">{int(max_value*0.50)}</text>
           <text x="272" y="150" fill="#9aa4b2" font-size="16" font-family="Arial">{int(max_value*0.75)}</text>
           <text x="308" y="286" fill="#9aa4b2" font-size="16" font-family="Arial">{int(max_value)}</text>
-          <g transform="rotate({angle:.1f} 200 200)" style="transition: transform 0.18s cubic-bezier(0.2, 0.9, 0.2, 1); filter:url(#glow);">
+          <g transform="rotate({angle:.1f} 200 200)" style="transition: transform 0.14s cubic-bezier(0.2, 0.9, 0.2, 1); filter:url(#glow);">
             <line x1="200" y1="205" x2="200" y2="78" stroke="#ff3b30" stroke-width="6" stroke-linecap="round"/>
             <line x1="200" y1="205" x2="200" y2="84" stroke="#ffffff" stroke-width="2" stroke-linecap="round"/>
             <circle cx="200" cy="205" r="16" fill="#111" stroke="#d9d9d9" stroke-width="3"/>
@@ -215,45 +214,48 @@ def needle_gauge_html(label, value, max_value, unit, redline=None, optimal_low=N
     """
 
 
+@st.cache_data(show_spinner=False)
+def load_audio_b64(audio_name: str):
+    p = Path(audio_name)
+    if p.exists() and p.is_file():
+        return base64.b64encode(p.read_bytes()).decode("utf-8")
+    return None
+
+
 def render_audio_once(rpm_now, redline, muted=False, asset_names=None):
     if muted:
         return
     if asset_names is None:
         asset_names = ["assets/superbike_loop.mp3", "superbike_loop.mp3", "engine_loop.mp3"]
-    audio_path = None
+    audio_b64 = None
     for name in asset_names:
-        p = Path(name)
-        if p.exists() and p.is_file():
-            audio_path = p
+        audio_b64 = load_audio_b64(name)
+        if audio_b64:
             break
-    if audio_path is None:
+    if not audio_b64:
         return
-    try:
-        audio_b64 = base64.b64encode(audio_path.read_bytes()).decode("utf-8")
-        playback_rate = clamp(0.72 + (float(rpm_now) / max(float(redline), 1.0)) * 1.65, 0.72, 2.20)
-        volume = clamp(0.18 + (float(rpm_now) / max(float(redline), 1.0)) * 0.42, 0.18, 0.60)
-        html = f"""
-        <html>
-        <body style='margin:0; padding:0; background:transparent; overflow:hidden;'>
-          <audio id='engineAudio' autoplay style='display:none;'>
-            <source src='data:audio/mp3;base64,{audio_b64}' type='audio/mp3'>
-          </audio>
-          <script>
-            const a = document.getElementById('engineAudio');
-            if (a) {{
-              a.loop = false;
-              a.playbackRate = {playback_rate:.4f};
-              a.volume = {volume:.4f};
-              a.play().catch(()=>{{}});
-              a.onended = () => {{ a.pause(); a.currentTime = 0; }};
-            }}
-          </script>
-        </body>
-        </html>
-        """
-        components.html(html, height=0)
-    except Exception:
-        pass
+    playback_rate = clamp(0.72 + (float(rpm_now) / max(float(redline), 1.0)) * 1.65, 0.72, 2.20)
+    volume = clamp(0.18 + (float(rpm_now) / max(float(redline), 1.0)) * 0.42, 0.18, 0.60)
+    html = f"""
+    <html>
+    <body style='margin:0; padding:0; background:transparent; overflow:hidden;'>
+      <audio id='engineAudio' autoplay style='display:none;'>
+        <source src='data:audio/mp3;base64,{audio_b64}' type='audio/mp3'>
+      </audio>
+      <script>
+        const a = document.getElementById('engineAudio');
+        if (a) {{
+          a.loop = false;
+          a.playbackRate = {playback_rate:.4f};
+          a.volume = {volume:.4f};
+          a.play().catch(()=>{{}});
+          a.onended = () => {{ a.pause(); a.currentTime = 0; }};
+        }}
+      </script>
+    </body>
+    </html>
+    """
+    components.html(html, height=0)
 
 
 def build_live_graph(history, current_idx=None, current_rpm=None, current_hp=None, current_nm=None):
@@ -435,6 +437,87 @@ def drag_profile(hp_max, weight_total):
     }
 
 
+def ease_in_out(t):
+    t = clamp(float(t), 0.0, 1.0)
+    return 3 * t * t - 2 * t * t * t
+
+
+def build_dyno_frames(latest, in_rpm):
+    redline_k = float(in_rpm) / 1000.0
+    peak_k = float(latest["RPM_HP"]) / 1000.0
+    max_hp = float(latest["Max_HP"])
+    max_speed = max(120.0, 60.0 + max_hp * 5.0)
+    frames = []
+
+    idle = list(np.linspace(1.5, 1.8, 18))
+    warm = list(np.linspace(1.8, 3.0, 10))
+    rise = list(np.linspace(3.0, peak_k, 18))
+    hold = [peak_k] * 5
+    sweep = list(np.linspace(peak_k, redline_k, 14))
+    bounce = []
+    for _ in range(4):
+        bounce += [redline_k * 0.97, redline_k, redline_k * 1.01, redline_k * 0.985]
+    cool = list(np.linspace(redline_k, 1.8, 10))
+    idle_end = [1.8] * 12
+    off = list(np.linspace(1.8, 0.0, 8))
+
+    seq = idle + warm + rise + hold + sweep + bounce + cool + idle_end + off
+    total = len(seq)
+    for i, rpm_k in enumerate(seq):
+        p = i / max(total - 1, 1)
+        rpms = latest["rpms"]
+        hps = latest["hps"]
+        torques = latest["torques"]
+        rpm_now = max(float(rpm_k) * 1000.0, 0.0)
+        hp_now = float(np.interp(rpm_now, rpms, hps))
+        nm_now = float(np.interp(rpm_now, rpms, torques))
+        speed_now = clamp(max_speed * (0.08 + 0.92 * ease_in_out(rpm_now / max(float(in_rpm), 1.0))), 0.0, max_speed)
+        graph = build_live_graph(st.session_state.dyno_history, current_idx=len(st.session_state.dyno_history) - 1, current_rpm=rpm_now, current_hp=hp_now, current_nm=nm_now)
+        frames.append({
+            "p": p,
+            "rpm_k": rpm_k,
+            "rpm": rpm_now,
+            "hp": hp_now,
+            "nm": nm_now,
+            "speed": speed_now,
+            "graph": graph,
+            "audio_rate": clamp(0.72 + (rpm_now / max(float(in_rpm), 1.0)) * 1.65, 0.72, 2.20),
+            "audio_volume": clamp(0.18 + (rpm_now / max(float(in_rpm), 1.0)) * 0.42, 0.18, 0.60),
+            "sleep": 0.035 if rpm_now < peak_k else 0.03,
+        })
+    return frames
+
+
+def build_drag_frames(dyno_like, rpm_limit, drag_joki):
+    hp_max = float(dyno_like["peak_hp"])
+    weight_total = float(drag_joki)
+    prof = drag_profile(hp_max, weight_total)
+
+    max_speed = max(x[2] for x in prof["segments"])
+    frames = []
+    n_frames = 120
+    for i in range(n_frames + 1):
+        p = i / n_frames
+        dist = 1000.0 * p
+        speed_now = max_speed * (1.0 - math.exp(-3.1 * p))
+        speed_now = clamp(speed_now + 4.0 * math.sin(p * math.pi), 0.0, max_speed)
+        rpm_now = clamp(1800.0 + (float(rpm_limit) - 1800.0) * (speed_now / max(max_speed, 1e-9)) ** 0.95, 1800.0, float(rpm_limit))
+        hp_now = hp_max * (0.55 + 0.45 * p)
+        nm_now = hp_now * 7127.0 / max(rpm_now, 1.0)
+        frames.append({
+            "p": p,
+            "distance": dist,
+            "speed": speed_now,
+            "rpm": rpm_now,
+            "hp": hp_now,
+            "nm": nm_now,
+            "sleep": max(prof["total_time"] / n_frames, 0.03),
+            "audio_rate": clamp(0.72 + (rpm_now / max(float(rpm_limit), 1.0)) * 1.65, 0.72, 2.20),
+            "audio_volume": clamp(0.18 + (rpm_now / max(float(rpm_limit), 1.0)) * 0.42, 0.18, 0.60),
+        })
+    return prof, frames
+
+
 # =========================================================
 # SIDEBAR
 # =========================================================
@@ -542,74 +625,55 @@ if run_dyno_btn:
     st.session_state.dyno_history.append(run)
     latest = run
 
+    dyno_frames = build_dyno_frames(latest, in_rpm)
+
     st.markdown("### 🎥 Live Dyno Visual")
     g1, g2 = st.columns(2)
     tach_ph = g1.empty()
     speed_ph = g2.empty()
     graph_ph = st.empty()
 
-    # 1) standby 0
-    for _ in range(4):
+    for _ in range(3):
         tach_ph.markdown(needle_gauge_html("Tachometer", 0.0, 15.0, "x1000rpm", float(in_rpm) / 1000.0, 1.5, 8.8), unsafe_allow_html=True)
         speed_ph.markdown(needle_gauge_html("Speedometer", 0.0, 120.0, "km/h", 100.0, 20.0, 80.0), unsafe_allow_html=True)
-        time.sleep(0.06)
+        time.sleep(0.04)
 
-    # 2) idle 1500-1800 rpm 1-5 detik (berdasarkan frame)
-    idle_frames = list(np.linspace(1.5, 1.8, 25))
-    warmup_frames = list(np.linspace(1.8, 3.2, 10))
-    rise_frames = list(np.linspace(3.2, float(latest["RPM_HP"]) / 1000.0, 22))
-    hold_frames = [float(latest["RPM_HP"]) / 1000.0] * 5
-    sweep_frames = list(np.linspace(float(latest["RPM_HP"]) / 1000.0, float(in_rpm) / 1000.0, 14))
-    limiter_bounce = []
-    redline_k = float(in_rpm) / 1000.0
-    for _ in range(4):
-        limiter_bounce += [redline_k * 0.97, redline_k, redline_k * 1.01, redline_k * 0.985]
-    down_frames = list(np.linspace(redline_k, 1.8, 10))
-    idle_end_frames = [1.8] * 18   # idle 1-3 detik
-    off_frames = list(np.linspace(1.8, 0.0, 8))
+    for idx, frame in enumerate(dyno_frames):
+        latest["live_pos"] = min(int((frame["rpm"] / max(float(latest["rpms"][-1]), 1.0)) * (len(latest["rpms"]) - 1)), len(latest["rpms"]) - 1)
+        tach_ph.markdown(
+            needle_gauge_html(
+                "Tachometer",
+                frame["rpm_k"],
+                15.0,
+                "x1000rpm",
+                float(in_rpm) / 1000.0,
+                1.5,
+                8.8,
+            ),
+            unsafe_allow_html=True,
+        )
+        speed_ph.markdown(
+            needle_gauge_html(
+                "Speedometer",
+                frame["speed"],
+                max(120.0, 60.0 + latest["Max_HP"] * 5.0),
+                "km/h",
+                max(120.0, 60.0 + latest["Max_HP"] * 5.0) * 0.82,
+                20.0,
+                80.0,
+            ),
+            unsafe_allow_html=True,
+        )
+        graph_ph.plotly_chart(frame["graph"], use_container_width=True, key=f"dyno_graph_{idx}")
+        render_audio_once(frame["rpm"], float(in_rpm), muted=st.session_state.mute_audio)
+        time.sleep(frame["sleep"])
 
-    anim_rpms_k = idle_frames + warmup_frames + rise_frames + hold_frames + sweep_frames + limiter_bounce + down_frames + idle_end_frames + off_frames
-
-    for idx, rpm_k in enumerate(anim_rpms_k):
-        rpm_now = max(float(rpm_k) * 1000.0, 0.0)
-        live_pos = min(int((rpm_now / max(float(latest["rpms"][-1]), 1.0)) * (len(latest["rpms"]) - 1)), len(latest["rpms"]) - 1)
-        latest["live_pos"] = live_pos
-        hp_now = float(np.interp(rpm_now, latest["rpms"], latest["hps"]))
-        nm_now = float(np.interp(rpm_now, latest["rpms"], latest["torques"]))
-
-        speed_max = max(120.0, 60.0 + latest["Max_HP"] * 5.0)
-        speed_now = clamp((rpm_now / max(float(latest["rpms"][-1]), 1.0)) * speed_max, 0.0, speed_max)
-
-        tach_ph.markdown(needle_gauge_html("Tachometer", rpm_k, 15.0, "x1000rpm", float(in_rpm) / 1000.0, 1.5, 8.8), unsafe_allow_html=True)
-        speed_ph.markdown(needle_gauge_html("Speedometer", speed_now, speed_max, "km/h", speed_max * 0.82, speed_max * 0.35, speed_max * 0.68), unsafe_allow_html=True)
-
-        live_graph = build_live_graph(st.session_state.dyno_history, current_idx=len(st.session_state.dyno_history) - 1, current_rpm=rpm_now, current_hp=hp_now, current_nm=nm_now)
-        graph_ph.plotly_chart(live_graph, use_container_width=True, key=f"dyno_graph_{idx}")
-
-        render_audio_once(rpm_now, float(in_rpm), muted=st.session_state.mute_audio)
-
-        if rpm_now <= 0:
-            time.sleep(0.10)
-        elif rpm_now < 1800:
-            time.sleep(0.07)
-        elif rpm_now < float(latest["RPM_HP"]):
-            time.sleep(0.045)
-        elif rpm_now < float(in_rpm):
-            time.sleep(0.040)
-        else:
-            time.sleep(0.040)
-
-    # 3) idle 3 detik lalu off
-    for _ in range(15):
-        tach_ph.markdown(needle_gauge_html("Tachometer", 1.8, 15.0, "x1000rpm", float(in_rpm) / 1000.0, 1.5, 8.8), unsafe_allow_html=True)
+    for _ in range(10):
+        tach_ph.markdown(needle_gauge_html("Tachometer", 0.0, 15.0, "x1000rpm", float(in_rpm) / 1000.0, 1.5, 8.8), unsafe_allow_html=True)
         speed_ph.markdown(needle_gauge_html("Speedometer", 0.0, max(120.0, 60.0 + latest["Max_HP"] * 5.0), "km/h", max(120.0, 60.0 + latest["Max_HP"] * 5.0) * 0.82, 20.0, 80.0), unsafe_allow_html=True)
-        time.sleep(0.18)
-    tach_ph.markdown(needle_gauge_html("Tachometer", 0.0, 15.0, "x1000rpm", float(in_rpm) / 1000.0, 1.5, 8.8), unsafe_allow_html=True)
-    speed_ph.markdown(needle_gauge_html("Speedometer", 0.0, max(120.0, 60.0 + latest["Max_HP"] * 5.0), "km/h", max(120.0, 60.0 + latest["Max_HP"] * 5.0) * 0.82, 20.0, 80.0), unsafe_allow_html=True)
+        time.sleep(0.08)
 
-    # 4) flowbench dan data baru tampil setelah run selesai
-    st.markdown("<div style='height:14px'></div>", unsafe_allow_html=True)
-    st.header("🌪️ Flowbench & Physical Analysis")
+    st.markdown("### 🌪️ Flowbench & Physical Analysis")
     m1, m2, m3, m4, m5 = st.columns(5)
     with m1:
         st.metric("Gas Speed In", f"{latest['Velocity']:.2f} m/s")
@@ -628,14 +692,13 @@ if run_dyno_btn:
     st.dataframe(
         df_perf.style
         .format({"CC": "{:.2f}", "CR": "{:.2f}", "AFR": "{:.2f}", "Max_HP": "{:.2f}", "Max_Nm": "{:.2f}", "Velocity": "{:.2f}"})
-        .map(lambda v: style_state(v, "cr"), subset=["CR"])
-        .map(lambda v: style_state(v, "vel"), subset=["Velocity"])
-        .map(lambda v: style_state(v, "afr"), subset=["AFR"]),
+        .applymap(lambda v: style_state(v, "cr"), subset=["CR"])
+        .applymap(lambda v: style_state(v, "vel"), subset=["Velocity"])
+        .applymap(lambda v: style_state(v, "afr"), subset=["AFR"]),
         hide_index=True,
         use_container_width=True,
     )
 
-    # ringkas analisa saja, tidak mengganggu visual
     st.divider()
     st.header("🏁 Axis Expert Physics Analysis")
     c1, c2, c3 = st.columns(3)
@@ -673,7 +736,7 @@ if run_drag_btn:
     )
     hp_max = dyno_like["peak_hp"]
     weight_total = float(std["weight_std"]) + float(drag_joki)
-    prof = drag_profile(hp_max, weight_total)
+    prof, drag_frames = build_drag_frames(dyno_like, in_rpm, weight_total)
 
     drag_run = {
         "mode": "drag",
@@ -696,27 +759,17 @@ if run_drag_btn:
     speed_ph = c2.empty()
     graph_ph = st.empty()
 
-    # idle singkat sebelum start
-    for _ in range(int(prof["idle_time"] * 10)):
+    for _ in range(int(prof["idle_time"] * 8)):
         tach_ph.markdown(needle_gauge_html("Tachometer", 1.8, 15.0, "x1000rpm", float(in_rpm) / 1000.0, 1.5, 8.8), unsafe_allow_html=True)
         speed_ph.markdown(needle_gauge_html("Speedometer", 0.0, max(120.0, drag_run["Max Speed"] * 1.15), "km/h", max(120.0, drag_run["Max Speed"]) * 0.82, 40.0, 110.0), unsafe_allow_html=True)
-        time.sleep(0.11)
+        time.sleep(0.08)
 
-    n_frames = 90
-    for i in range(n_frames + 1):
-        p = i / n_frames
-        dist = 1000.0 * p
-        speed_now = drag_run["Max Speed"] * (1.0 - math.exp(-3.1 * p))
-        speed_now = clamp(speed_now + 4.0 * math.sin(p * math.pi), 0.0, drag_run["Max Speed"])
-        rpm_now = clamp(1800.0 + (float(in_rpm) - 1800.0) * (speed_now / max(drag_run["Max Speed"], 1e-9)) ** 0.95, 1800.0, float(in_rpm))
-        hp_now = hp_max * (0.55 + 0.45 * p)
-        nm_now = hp_now * 7127.0 / max(rpm_now, 1.0)
-
-        tach_ph.markdown(needle_gauge_html("Tachometer", rpm_now / 1000.0, 15.0, "x1000rpm", float(in_rpm) / 1000.0, 1.5, 8.8), unsafe_allow_html=True)
-        speed_ph.markdown(needle_gauge_html("Speedometer", speed_now, max(120.0, drag_run["Max Speed"] * 1.15), "km/h", max(120.0, drag_run["Max Speed"]) * 0.82, 40.0, 110.0), unsafe_allow_html=True)
+    for i, f in enumerate(drag_frames):
+        tach_ph.markdown(needle_gauge_html("Tachometer", f["rpm"] / 1000.0, 15.0, "x1000rpm", float(in_rpm) / 1000.0, 1.5, 8.8), unsafe_allow_html=True)
+        speed_ph.markdown(needle_gauge_html("Speedometer", f["speed"], max(120.0, drag_run["Max Speed"] * 1.15), "km/h", max(120.0, drag_run["Max Speed"]) * 0.82, 40.0, 110.0), unsafe_allow_html=True)
 
         graph = go.Figure()
-        graph.add_trace(go.Scatter(x=[0, dist], y=[0, speed_now], line=dict(width=4), showlegend=False))
+        graph.add_trace(go.Scatter(x=[0, f["distance"]], y=[0, f["speed"]], line=dict(width=4), showlegend=False))
         graph.update_layout(
             template="plotly_dark",
             height=260,
@@ -730,14 +783,13 @@ if run_drag_btn:
         if i % 2 == 0:
             graph_ph.plotly_chart(graph, use_container_width=True, key=f"drag_graph_{i}")
 
-        render_audio_once(rpm_now, float(in_rpm), muted=st.session_state.mute_audio)
-        time.sleep(max(prof["total_time"] / n_frames, 0.03))
+        render_audio_once(f["rpm"], float(in_rpm), muted=st.session_state.mute_audio)
+        time.sleep(f["sleep"])
 
-    # final idle
     for _ in range(10):
         tach_ph.markdown(needle_gauge_html("Tachometer", 0.0, 15.0, "x1000rpm", float(in_rpm) / 1000.0, 1.5, 8.8), unsafe_allow_html=True)
         speed_ph.markdown(needle_gauge_html("Speedometer", 0.0, max(120.0, drag_run["Max Speed"] * 1.15), "km/h", max(120.0, drag_run["Max Speed"]) * 0.82, 40.0, 110.0), unsafe_allow_html=True)
-        time.sleep(0.18)
+        time.sleep(0.08)
 
     st.markdown("### 📊 Drag Simulation Result")
     drag_table = pd.DataFrame([{ "Run": drag_run["Run"], "100m": drag_run["0-100m"], "201m": drag_run["0-201m"], "402m": drag_run["0-402m"], "1000m": drag_run["0-1000m"], "Max Speed (km/h)": drag_run["Max Speed"] }])
@@ -761,9 +813,9 @@ if st.session_state.dyno_history and not run_dyno_btn:
     st.dataframe(
         df_perf.style
         .format({"CC": "{:.2f}", "CR": "{:.2f}", "AFR": "{:.2f}", "Max_HP": "{:.2f}", "Max_Nm": "{:.2f}", "Velocity": "{:.2f}"})
-        .map(lambda v: style_state(v, "cr"), subset=["CR"])
-        .map(lambda v: style_state(v, "vel"), subset=["Velocity"])
-        .map(lambda v: style_state(v, "afr"), subset=["AFR"]),
+        .applymap(lambda v: style_state(v, "cr"), subset=["CR"])
+        .applymap(lambda v: style_state(v, "vel"), subset=["Velocity"])
+        .applymap(lambda v: style_state(v, "afr"), subset=["AFR"]),
         hide_index=True,
         use_container_width=True,
     )
