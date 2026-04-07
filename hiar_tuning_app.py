@@ -169,6 +169,9 @@ def build_needle_gauge(label, value, max_value, unit, redline, optimal_low, opti
     </div>
     """
 
+def _audio_filter_chain_bytes(audio_bytes: bytes) -> bytes:
+    return audio_bytes
+
 def render_engine_audio_once(rpm_now, redline, asset_names=None):
     if asset_names is None:
         asset_names = ["assets/superbike_loop.mp3", "superbike_loop.mp3", "engine_loop.mp3"]
@@ -181,7 +184,7 @@ def render_engine_audio_once(rpm_now, redline, asset_names=None):
     if audio_path is None:
         return
     try:
-        audio_b64 = base64.b64encode(audio_path.read_bytes()).decode("utf-8")
+        audio_b64 = base64.b64encode(_audio_filter_chain_bytes(audio_path.read_bytes())).decode("utf-8")
         playback_rate = clamp(0.72 + (float(rpm_now) / max(float(redline), 1.0)) * 1.65, 0.72, 2.20)
         volume = clamp(0.18 + (float(rpm_now) / max(float(redline), 1.0)) * 0.42, 0.18, 0.60)
         html = f"""
@@ -221,12 +224,83 @@ def build_live_graph(history, current_idx=None, current_rpm=None, current_hp=Non
     if current_idx is not None and history:
         current = history[current_idx]
         color = colors[current_idx % len(colors)]
-        fig.add_trace(go.Scatter(x=current["rpms"][: current["live_pos"] + 1], y=current["hps"][: current["live_pos"] + 1], name="Current Live HP", line=dict(color=color, width=5), opacity=1.0))
+        live_pos = current.get("live_pos", len(current["rpms"]) - 1)
+        live_pos = clamp(int(live_pos), 0, len(current["rpms"]) - 1)
+        fig.add_trace(go.Scatter(x=current["rpms"][: live_pos + 1], y=current["hps"][: live_pos + 1], name="Current Live HP", line=dict(color=color, width=5), opacity=1.0))
         fig.add_trace(go.Scatter(x=[current_rpm], y=[current_hp], mode="markers", marker=dict(size=12, color="#FFFFFF", line=dict(color=color, width=3)), name="Live Point", showlegend=False))
         fig.add_trace(go.Scatter(x=[current_rpm], y=[current_nm], mode="markers", marker=dict(size=10, color="#FFFFFF", line=dict(color=color, width=2)), name="Live Torque", yaxis="y2", showlegend=False))
         fig.add_vline(x=current_rpm, line_width=1, line_dash="dash", line_color="rgba(255,255,255,0.5)")
     fig.update_layout(template="plotly_dark", height=560, showlegend=False, xaxis=dict(title="Engine RPM", showgrid=True, gridcolor="#333", dtick=1000), yaxis=dict(title="Power (HP)", showgrid=True, gridcolor="#333"), yaxis2=dict(overlaying="y", side="right", title="Torque (Nm)", showgrid=False), paper_bgcolor="#050505", plot_bgcolor="#050505", margin=dict(l=30, r=30, t=20, b=20))
-    return fig
+
+
+def build_dyno_frame_buffer(rpms, hps, torques, rpm_limit, idle_rpm=1500.0):
+    """
+    Precalculate semua frame dulu supaya playback lebih smooth.
+    Tidak ada hitung ulang saat render.
+    """
+    frames = []
+
+    # standby / idle awal
+    for _ in range(10):
+        frames.append({"rpm": 0.0, "hp": 0.0, "nm": 0.0})
+
+    for r in np.linspace(0.0, idle_rpm, 10):
+        frames.append({
+            "rpm": float(r),
+            "hp": float(np.interp(r, rpms, hps)),
+            "nm": float(np.interp(r, rpms, torques)),
+        })
+
+    # naik menuju peak lalu limiter
+    peak_rpm = float(rpms[int(np.argmax(hps))]) if len(rpms) else idle_rpm
+    for r in np.linspace(idle_rpm, peak_rpm, 18):
+        frames.append({
+            "rpm": float(r),
+            "hp": float(np.interp(r, rpms, hps)),
+            "nm": float(np.interp(r, rpms, torques)),
+        })
+
+    for r in np.linspace(peak_rpm, float(rpm_limit), 14):
+        frames.append({
+            "rpm": float(r),
+            "hp": float(np.interp(r, rpms, hps)),
+            "nm": float(np.interp(r, rpms, torques)),
+        })
+
+    # limiter bounce
+    for r in [float(rpm_limit) * 0.97, float(rpm_limit), float(rpm_limit) * 1.01, float(rpm_limit) * 0.985] * 4:
+        frames.append({
+            "rpm": float(r),
+            "hp": float(np.interp(r, rpms, hps)),
+            "nm": float(np.interp(r, rpms, torques)),
+        })
+
+    # turun ke idle
+    for r in np.linspace(float(rpm_limit), idle_rpm, 10):
+        frames.append({
+            "rpm": float(r),
+            "hp": float(np.interp(r, rpms, hps)),
+            "nm": float(np.interp(r, rpms, torques)),
+        })
+
+    # idle akhir lalu off
+    for _ in range(8):
+        frames.append({
+            "rpm": idle_rpm,
+            "hp": float(np.interp(idle_rpm, rpms, hps)),
+            "nm": float(np.interp(idle_rpm, rpms, torques)),
+        })
+
+    for r in np.linspace(idle_rpm, 0.0, 8):
+        frames.append({
+            "rpm": float(r),
+            "hp": float(np.interp(r, rpms, hps)),
+            "nm": float(np.interp(r, rpms, torques)),
+        })
+
+    return frames
+
+
 
 def calculate_axis_v22(cc, bore, stroke, cr, rpm_limit, v_in, n_v_in, v_out, n_v_out, v_lift, venturi, dur_in, dur_out, afr, material, d_type, std):
     rpms = np.arange(1000, int(rpm_limit) + 100, 100)
@@ -401,47 +475,49 @@ if st.session_state.history:
     speed_ph = gauge_mid.empty()
     graph_ph = st.empty()
 
-    idle_frames = [0] * 10
-    warmup_frames = list(np.linspace(0, 1800, 10))
-    blip_frames = list(np.linspace(1800, 3200, 6)) + list(np.linspace(3200, 1800, 5))
-    rise_frames = list(np.linspace(1800, latest["RPM_HP"], 18))
-    hold_frames = [float(latest["RPM_HP"])] * 6
-    sweep_frames = list(np.linspace(float(latest["RPM_HP"]), float(in_rpm), 14))
-    limiter_bounce = []
-    for _ in range(4):
-        limiter_bounce += [float(in_rpm) * 0.97, float(in_rpm), float(in_rpm) * 1.01, float(in_rpm) * 0.985]
-    cooldown_frames = list(np.linspace(float(in_rpm), 1800, 10))
-    final_idle_frames = [1800] * 8
-    stop_frames = list(np.linspace(1800, 0, 8))
-    anim_rpms = idle_frames + warmup_frames + blip_frames + rise_frames + hold_frames + sweep_frames + limiter_bounce + cooldown_frames + final_idle_frames + stop_frames
+    frame_buffer = build_dyno_frame_buffer(rpms, hps, torques, float(in_rpm), idle_rpm=1500.0)
 
-    history_idx = len(st.session_state.history) - 1
-    current_run = st.session_state.history[history_idx]
-    current_run["live_pos"] = 0
-    speed_max = max(120.0, 60.0 + current_run["Max_HP"] * 5.0)
+    # playback only: semua data sudah dihitung dulu
+    for frame_idx, frame in enumerate(frame_buffer):
+        rpm_now = frame["rpm"]
+        hp_now = frame["hp"]
+        nm_now = frame["nm"]
 
-    for frame_idx, rpm_now in enumerate(anim_rpms):
-        current_run["live_pos"] = min(int((max(rpm_now, 1.0) / max(float(current_run["rpms"][-1]), 1.0)) * (len(current_run["rpms"]) - 1)), len(current_run["rpms"]) - 1)
-        hp_now = float(np.interp(rpm_now, current_run["rpms"], current_run["hps"]))
-        nm_now = float(np.interp(rpm_now, current_run["rpms"], current_run["torques"]))
+        current_run["live_pos"] = min(
+            int((max(rpm_now, 1.0) / max(float(current_run["rpms"][-1]), 1.0)) * (len(current_run["rpms"]) - 1)),
+            len(current_run["rpms"]) - 1
+        )
+
         speed_now = clamp((rpm_now / max(float(current_run["rpms"][-1]), 1.0)) * speed_max, 0.0, speed_max)
-
         tach_show = 0 if frame_idx == 0 else rpm_now
         speed_show = 0 if frame_idx == 0 else speed_now
 
-        tach_ph.markdown(build_needle_gauge("Tachometer", tach_show, max(float(in_rpm) + 1500.0, 1500.0), "RPM", float(in_rpm), 1500.0, max(1800.0, float(in_rpm) * 0.92)), unsafe_allow_html=True)
-        speed_ph.markdown(build_needle_gauge("Speedometer", speed_show, speed_max, "km/h", speed_max * 0.82, speed_max * 0.35, speed_max * 0.68), unsafe_allow_html=True)
-        graph_ph.plotly_chart(build_live_graph(st.session_state.history, current_idx=history_idx, current_rpm=max(rpm_now, 0), current_hp=hp_now, current_nm=nm_now), use_container_width=True, key=f"graph_{history_idx}_{frame_idx}")
+        tach_ph.markdown(
+            build_needle_gauge("Tachometer", tach_show, max(float(in_rpm) + 1500.0, 1500.0), "RPM", float(in_rpm), 1500.0, max(1800.0, float(in_rpm) * 0.92)),
+            unsafe_allow_html=True
+        )
+        speed_ph.markdown(
+            build_needle_gauge("Speedometer", speed_show, speed_max, "km/h", speed_max * 0.82, speed_max * 0.35, speed_max * 0.68),
+            unsafe_allow_html=True
+        )
+
+        if frame_idx % 2 == 0:
+            graph_ph.plotly_chart(
+                build_live_graph(st.session_state.history, current_idx=history_idx, current_rpm=max(rpm_now, 0), current_hp=hp_now, current_nm=nm_now),
+                use_container_width=True,
+                key=f"graph_{history_idx}_{frame_idx}"
+            )
+
         render_engine_audio_once(rpm_now, float(in_rpm))
 
         if rpm_now <= 0:
-            time.sleep(0.12)
-        elif rpm_now < 1800:
             time.sleep(0.10)
+        elif rpm_now < 1800:
+            time.sleep(0.08)
         elif rpm_now < float(latest["RPM_HP"]):
-            time.sleep(0.055)
+            time.sleep(0.050)
         elif rpm_now < float(in_rpm):
-            time.sleep(0.045)
+            time.sleep(0.042)
         else:
             time.sleep(0.040)
 
@@ -464,8 +540,8 @@ if st.session_state.history:
     )
 
     st.write("### 🏁 Drag Simulation Predictions")
-    df_drag = df[["Run", "T100", "T201", "T402", "T1000"]].rename(columns={"T100": "100m", "T201": "201m", "T402": "402m", "T1000": "1000m"})
-    st.dataframe(df_drag.style.format({"100m": "{:.2f}s", "201m": "{:.2f}s", "402m": "{:.2f}s", "1000m": "{:.2f}s"}), hide_index=True, use_container_width=True)
+    df_drag = df[["Run", "T100", "T201", "T402", "T1000"]].rename(columns={"T100": "0-100 km/h", "T201": "201m", "T402": "402m", "T1000": "1000m"})
+    st.dataframe(df_drag.style.format({"0-100 km/h": "{:.2f}s", "201m": "{:.2f}s", "402m": "{:.2f}s", "1000m": "{:.2f}s"}), hide_index=True, use_container_width=True)
 
     st.divider()
     st.header("🏁 Axis Expert Physics Analysis")
