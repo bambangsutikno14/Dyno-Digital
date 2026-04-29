@@ -200,114 +200,132 @@ def build_needle_gauge(label, value, max_value, unit, redline, optimal_low, opti
 
 def build_live_graph(history, current_idx=None, current_rpm=None, current_hp=None, current_nm=None):
     fig = go.Figure()
-    colors = ["rgba(255, 0, 0, 1)", "rgba(0, 255, 0, 1)", "rgba(0, 0, 255, 1)", "rgba(255, 255, 0, 1)", "rgba(255, 0, 255, 1)", "rgba(0, 255, 255, 1)"]
-
-    def _end_label(run_name: str, x, y, color: str, suffix: str = ""):
-        return go.Scatter(
-            x=[x],
-            y=[y],
-            mode="markers+text",
-            marker=dict(size=1, color=color, opacity=0.0),
-            text=[f"{run_name}{suffix}"],
-            textposition="top right",
-            textfont=dict(color=color, size=13, family="Arial Black"),
-            hoverinfo="skip",
-            showlegend=False,
-        )
-
-    def _peak_marker(x, y, color: str, label: str, yaxis: str = "y"):
-        return go.Scatter(
-            x=[x],
-            y=[y],
-            mode="markers+text",
-            marker=dict(size=13, symbol="star", color=color, line=dict(color="#ffffff", width=1.5)),
-            text=[label],
-            textposition="top center",
-            textfont=dict(color="#ffffff", size=11, family="Arial"),
-            hoverinfo="skip",
-            showlegend=False,
-            yaxis=yaxis,
-        )
+    colors = [
+        "rgba(255, 0, 0, 1)",
+        "rgba(0, 255, 0, 1)",
+        "rgba(0, 0, 255, 1)",
+        "rgba(255, 255, 0, 1)",
+        "rgba(255, 0, 255, 1)",
+        "rgba(0, 255, 255, 1)",
+    ]
 
     for i, r in enumerate(history):
-        color = colors[i % len(colors)]
-        opacity = 0.18 if i < len(history) - 1 else 0.92
-        width = 2 if i < len(history) - 1 else 3
-        dash = "dot" if i < len(history) - 1 else "solid"
-
         rpms = r.get("rpms", [])
         hps = r.get("hps", [])
         torques = r.get("torques", [])
-        if not rpms or not hps or not torques:
+        if len(rpms) == 0 or len(hps) == 0 or len(torques) == 0:
             continue
 
+        color = colors[i % len(colors)]
+        is_latest = i == len(history) - 1
+        opacity = 0.18 if not is_latest else 0.9
+        width = 2 if not is_latest else 3
+        dash = "dot" if not is_latest else "solid"
         run_name = str(r.get("Run", f"Run {i + 1}"))
-        hp_idx = int(np.argmax(hps))
-        nm_idx = int(np.argmax(torques))
-        hp_end_idx = len(rpms) - 1
-        live_pos = r.get("live_pos", hp_end_idx)
-        hp_end_idx = clamp(int(live_pos), 0, hp_end_idx)
 
-        fig.add_trace(go.Scatter(
-            x=rpms,
-            y=hps,
-            name=f"{run_name} (HP)",
-            line=dict(color=color, width=width, dash=dash),
-            opacity=opacity,
-            hovertemplate="RPM %{x:.0f}<br>HP %{y:.2f}<extra></extra>",
-        ))
-        fig.add_trace(go.Scatter(
-            x=rpms,
-            y=torques,
-            name=f"{run_name} (Nm)",
-            line=dict(color=color, width=max(width - 1, 1), dash="dot"),
-            opacity=opacity,
-            yaxis="y2",
-            hovertemplate="RPM %{x:.0f}<br>Nm %{y:.2f}<extra></extra>",
-        ))
+        fig.add_trace(
+            go.Scatter(
+                x=rpms,
+                y=hps,
+                name=f"{run_name} (HP)",
+                line=dict(color=color, width=width, dash=dash),
+                opacity=opacity,
+            )
+        )
+        fig.add_trace(
+            go.Scatter(
+                x=rpms,
+                y=torques,
+                name=f"{run_name} (Nm)",
+                line=dict(color=color, width=max(width - 1, 1), dash="dot"),
+                opacity=opacity,
+                yaxis="y2",
+            )
+        )
 
-        # label di ujung garis run
-        fig.add_trace(_end_label(run_name, rpms[hp_end_idx], hps[hp_end_idx], color, suffix=""))
+        idx_hp = int(np.argmax(hps))
+        idx_nm = int(np.argmax(torques))
+        hp_x = float(rpms[idx_hp])
+        hp_y = float(hps[idx_hp])
+        nm_x = float(rpms[idx_nm])
+        nm_y = float(torques[idx_nm])
 
-        # pin point tenaga maksimum dan torsi maksimum
-        fig.add_trace(_peak_marker(rpms[hp_idx], hps[hp_idx], "#ffd700", f"Max HP {hps[hp_idx]:.2f}", yaxis="y"))
-        fig.add_trace(_peak_marker(rpms[nm_idx], torques[nm_idx], "#00e5ff", f"Max Nm {torques[nm_idx]:.2f}", yaxis="y2"))
+        fig.add_trace(
+            go.Scatter(
+                x=[hp_x],
+                y=[hp_y],
+                mode="markers+text",
+                text=[f"{run_name} HP Max"],
+                textposition="top center",
+                marker=dict(size=12, color="#ffffff", line=dict(color=color, width=3), symbol="circle"),
+                showlegend=False,
+            )
+        )
+        fig.add_trace(
+            go.Scatter(
+                x=[nm_x],
+                y=[nm_y],
+                mode="markers+text",
+                text=[f"{run_name} Torsi Max"],
+                textposition="bottom center",
+                marker=dict(size=12, color="#ffffff", line=dict(color=color, width=3), symbol="x"),
+                yaxis="y2",
+                showlegend=False,
+            )
+        )
+
+        fig.add_annotation(
+            x=float(rpms[-1]),
+            y=float(hps[-1]),
+            xref="x",
+            yref="y",
+            text=run_name,
+            showarrow=False,
+            xanchor="left",
+            yanchor="middle",
+            font=dict(color=color, size=12),
+            bgcolor="rgba(5,5,5,0.25)",
+        )
 
     if current_idx is not None and history:
         current = history[current_idx]
-        color = colors[current_idx % len(colors)]
         rpms = current.get("rpms", [])
         hps = current.get("hps", [])
         torques = current.get("torques", [])
-        if rpms and hps and torques:
+        if len(rpms) > 0 and len(hps) > 0 and len(torques) > 0:
+            color = colors[current_idx % len(colors)]
             live_pos = current.get("live_pos", len(rpms) - 1)
             live_pos = clamp(int(live_pos), 0, len(rpms) - 1)
-            fig.add_trace(go.Scatter(
-                x=rpms[: live_pos + 1],
-                y=hps[: live_pos + 1],
-                name="Current Live HP",
-                line=dict(color=color, width=5),
-                opacity=1.0,
-                hovertemplate="RPM %{x:.0f}<br>HP %{y:.2f}<extra></extra>",
-                showlegend=False,
-            ))
-            fig.add_trace(go.Scatter(
-                x=[current_rpm],
-                y=[current_hp],
-                mode="markers",
-                marker=dict(size=12, color="#FFFFFF", line=dict(color=color, width=3)),
-                name="Live Point",
-                showlegend=False,
-            ))
-            fig.add_trace(go.Scatter(
-                x=[current_rpm],
-                y=[current_nm],
-                mode="markers",
-                marker=dict(size=10, color="#FFFFFF", line=dict(color=color, width=2)),
-                name="Live Torque",
-                yaxis="y2",
-                showlegend=False,
-            ))
+            fig.add_trace(
+                go.Scatter(
+                    x=rpms[: live_pos + 1],
+                    y=hps[: live_pos + 1],
+                    name="Current Live HP",
+                    line=dict(color=color, width=5),
+                    opacity=1.0,
+                )
+            )
+            fig.add_trace(
+                go.Scatter(
+                    x=[current_rpm],
+                    y=[current_hp],
+                    mode="markers",
+                    marker=dict(size=12, color="#FFFFFF", line=dict(color=color, width=3)),
+                    name="Live Point",
+                    showlegend=False,
+                )
+            )
+            fig.add_trace(
+                go.Scatter(
+                    x=[current_rpm],
+                    y=[current_nm],
+                    mode="markers",
+                    marker=dict(size=10, color="#FFFFFF", line=dict(color=color, width=2)),
+                    name="Live Torque",
+                    yaxis="y2",
+                    showlegend=False,
+                )
+            )
             fig.add_vline(x=current_rpm, line_width=1, line_dash="dash", line_color="rgba(255,255,255,0.5)")
 
     fig.update_layout(
@@ -322,8 +340,6 @@ def build_live_graph(history, current_idx=None, current_rpm=None, current_hp=Non
         margin=dict(l=30, r=30, t=20, b=20),
     )
     return fig
-
-
 def build_dyno_frame_buffer(rpms, hps, torques, rpm_limit, idle_rpm=1500.0):
     """
     Precalculate semua frame dulu supaya playback lebih smooth.
@@ -526,6 +542,7 @@ with st.sidebar:
     sel_cc = st.selectbox("Kapasitas (CC)", list(DATABASE_REF[sel_merk][sel_sys].keys()))
     sel_model = st.selectbox("Model Motor", list(DATABASE_REF[sel_merk][sel_sys][sel_cc].keys()))
     std = DATABASE_REF[sel_merk][sel_sys][sel_cc][sel_model]
+
     st.header("2️⃣ ENGINE SIMULATION")
     with st.expander("🛠️ Perimeter 1 (Standar)", expanded=True):
         raw_label = st.text_input("Label Run", value=f"Run {len(st.session_state.history)+1}")
@@ -554,15 +571,15 @@ with st.sidebar:
 
     st.markdown("---")
     st.subheader("3️⃣ DYNO")
+    run_dyno_btn = st.button("🚀 ANALYZE & RUN AXIS", use_container_width=True)
+
+    st.markdown("---")
+    st.subheader("4️⃣ DRAG")
     col_joki, col_ratio = st.columns(2)
     with col_joki:
         in_joki = st.number_input("Berat Joki (kg)", value=60.0, step=1.0)
     with col_ratio:
         final_ratio = st.number_input("Final Ratio", value=1.0, step=0.01)
-    run_dyno_btn = st.button("🚀 ANALYZE & RUN AXIS", use_container_width=True)
-
-    st.markdown("---")
-    st.subheader("4️⃣ DRAG")
     run_drag_btn = st.button("🏁 DRAG SIMULATOR", use_container_width=True)
     mute_audio = st.toggle("🔇 Mute Audio", value=st.session_state.mute_audio)
     st.session_state.mute_audio = mute_audio
@@ -852,6 +869,16 @@ def render_axis_dashboard(latest, history, rpm_limit):
             unsafe_allow_html=True,
         )
 
+    st.header("📈 Grafik Axis")
+    axis_fig = build_live_graph(
+        history,
+        current_idx=len(history) - 1,
+        current_rpm=float(latest["RPM_HP"]),
+        current_hp=float(latest["Max_HP"]),
+        current_nm=float(latest["Max_Nm"]),
+    )
+    st.plotly_chart(axis_fig, use_container_width=True)
+
     st.header("🌪️ Flowbench & Physical Analysis")
     m1, m2, m3, m4, m5 = st.columns(5)
     with m1:
@@ -865,16 +892,6 @@ def render_axis_dashboard(latest, history, rpm_limit):
     with m5:
         st.metric("Flow Out (est)", f"{round((latest['v_out'] / 25.4) ** 2 * 146, 1)} CFM")
 
-    st.header("📈 Grafik Axis")
-    axis_fig = build_live_graph(
-        history,
-        current_idx=len(history) - 1,
-        current_rpm=float(latest["RPM_HP"]),
-        current_hp=float(latest["Max_HP"]),
-        current_nm=float(latest["Max_Nm"]),
-    )
-    st.plotly_chart(axis_fig, use_container_width=True)
-
     st.header("📊 Tabel Axis")
     df = pd.DataFrame(history)
     df_perf = df[["Run", "CC", "CR", "AFR", "Max_HP", "RPM_HP", "Max_Nm", "RPM_Nm", "Velocity"]].copy()
@@ -886,8 +903,6 @@ def render_axis_dashboard(latest, history, rpm_limit):
         hide_index=True,
         use_container_width=True,
     )
-
-    render_expert_analysis(latest)
 
 
 
@@ -1007,6 +1022,9 @@ if st.session_state.get("history"):
         st.markdown("---")
         animate_drag_run(st.session_state.last_drag, in_rpm)
         render_drag_dashboard(latest, st.session_state.last_drag, in_rpm)
+
+    st.markdown("---")
+    render_expert_analysis(latest)
 
 st.write("---")
 st.error("⚠️ **DISCLAIMER:** Perhitungan hanya estimasi kalkulasi data, hasil nyata bergantung pada efisiensi volumetrik, suhu, kualitas part, dan setting lapangan.")
