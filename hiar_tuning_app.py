@@ -24,43 +24,43 @@ DATABASE_REF = {
     "YAMAHA (MATIC)": {
         "Karbu": {
             "115cc": {
-                "Mio / Soul 115": {"bore": 50.0, "stroke": 57.9, "v_head": 13.7, "valve_in": 23.0, "valve_out": 19.0, "venturi": 24.0, "hp_std": 8.78, "peak_rpm": 8000, "limit_std": 9000, "weight_std": 92.0, "valves": 2, "lift_std": 7.0, "dur_std": 230}
+                "Mio / Soul 115": {"bore": 50.0, "stroke": 57.9, "v_head": 13.7, "valve_in": 23.0, "valve_out": 19.0, "venturi": 24.0, "hp_std": 8.78, "peak_rpm": 8000, "limit_std": 9000, "weight_std": 92.0, "valves": 2, "valves_in_std": 1, "valves_out_std": 1, "lift_std": 7.0, "dur_std": 230}
             },
             "125cc": {
-                "Xeon (Carb)": {"bore": 52.4, "stroke": 57.9, "v_head": 14.5, "valve_in": 26.0, "valve_out": 21.0, "venturi": 26.0, "hp_std": 10.7, "peak_rpm": 8500, "limit_std": 9500, "weight_std": 103.0, "valves": 2, "lift_std": 7.5, "dur_std": 235}
+                "Xeon (Carb)": {"bore": 52.4, "stroke": 57.9, "v_head": 14.5, "valve_in": 26.0, "valve_out": 21.0, "venturi": 26.0, "hp_std": 10.7, "peak_rpm": 8500, "limit_std": 9500, "weight_std": 103.0, "valves": 2, "valves_in_std": 1, "valves_out_std": 1, "lift_std": 7.5, "dur_std": 235}
             }
         },
         "Injeksi": {
             "125cc": {
-                "Mio Fino 125 FI": {"bore": 52.4, "stroke": 57.9, "v_head": 14.2, "valve_in": 25.5, "valve_out": 21.0, "venturi": 24.0, "hp_std": 9.5, "peak_rpm": 8000, "limit_std": 9500, "weight_std": 98.0, "valves": 2, "lift_std": 7.8, "dur_std": 235}
+                "Mio Fino 125 FI": {"bore": 52.4, "stroke": 57.9, "v_head": 14.2, "valve_in": 25.5, "valve_out": 21.0, "venturi": 24.0, "hp_std": 9.5, "peak_rpm": 8000, "limit_std": 9500, "weight_std": 98.0, "valves": 2, "valves_in_std": 1, "valves_out_std": 1, "lift_std": 7.8, "dur_std": 235}
             },
             "155cc": {
-                "NMAX 155 / Aerox": {"bore": 58.0, "stroke": 58.7, "v_head": 14.6, "valve_in": 20.5, "valve_out": 17.5, "venturi": 28.0, "hp_std": 15.09, "peak_rpm": 8000, "limit_std": 9500, "weight_std": 127.0, "valves": 4, "lift_std": 8.2, "dur_std": 240}
+                "NMAX 155 / Aerox": {"bore": 58.0, "stroke": 58.7, "v_head": 14.6, "valve_in": 20.5, "valve_out": 17.5, "venturi": 28.0, "hp_std": 15.09, "peak_rpm": 8000, "limit_std": 9500, "weight_std": 127.0, "valves": 4, "valves_in_std": 2, "valves_out_std": 2, "lift_std": 8.2, "dur_std": 240}
             },
             "250cc": {
-                "XMAX 250": {"bore": 70.0, "stroke": 64.9, "v_head": 22.5, "valve_in": 26.5, "valve_out": 22.5, "venturi": 32.0, "hp_std": 22.5, "peak_rpm": 7000, "limit_std": 9000, "weight_std": 179.0, "valves": 4, "lift_std": 8.5, "dur_std": 245}
+                "XMAX 250": {"bore": 70.0, "stroke": 64.9, "v_head": 22.5, "valve_in": 26.5, "valve_out": 22.5, "venturi": 32.0, "hp_std": 22.5, "peak_rpm": 7000, "limit_std": 9000, "weight_std": 179.0, "valves": 4, "valves_in_std": 2, "valves_out_std": 2, "lift_std": 8.5, "dur_std": 245}
             }
         }
     },
     "HONDA (MATIC)": {
         "Karbu": {
             "110cc": {
-                "Beat 110 Karbu": {"bore": 50.0, "stroke": 55.0, "v_head": 11.8, "valve_in": 25.5, "valve_out": 21.0, "venturi": 22.0, "hp_std": 8.22, "peak_rpm": 8000, "limit_std": 9000, "weight_std": 89.0, "valves": 2, "lift_std": 7.0, "dur_std": 230},
-                "Vario 110 Karbu": {"bore": 50.0, "stroke": 55.0, "v_head": 11.5, "valve_in": 25.5, "valve_out": 21.0, "venturi": 24.0, "hp_std": 8.99, "peak_rpm": 8000, "limit_std": 9000, "weight_std": 99.0, "valves": 2, "lift_std": 7.2, "dur_std": 230}
+                "Beat 110 Karbu": {"bore": 50.0, "stroke": 55.0, "v_head": 11.8, "valve_in": 25.5, "valve_out": 21.0, "venturi": 22.0, "hp_std": 8.22, "peak_rpm": 8000, "limit_std": 9000, "weight_std": 89.0, "valves": 2, "valves_in_std": 1, "valves_out_std": 1, "lift_std": 7.0, "dur_std": 230},
+                "Vario 110 Karbu": {"bore": 50.0, "stroke": 55.0, "v_head": 11.5, "valve_in": 25.5, "valve_out": 21.0, "venturi": 24.0, "hp_std": 8.99, "peak_rpm": 8000, "limit_std": 9000, "weight_std": 99.0, "valves": 2, "valves_in_std": 1, "valves_out_std": 1, "lift_std": 7.2, "dur_std": 230}
             }
         },
         "Injeksi": {
             "110cc": {
-                "Beat 110 FI (eSP)": {"bore": 50.0, "stroke": 55.1, "v_head": 12.0, "valve_in": 25.5, "valve_out": 21.0, "venturi": 22.0, "hp_std": 8.68, "peak_rpm": 7500, "limit_std": 9300, "weight_std": 93.0, "valves": 2, "lift_std": 7.2, "dur_std": 232}
+                "Beat 110 FI (eSP)": {"bore": 50.0, "stroke": 55.1, "v_head": 12.0, "valve_in": 25.5, "valve_out": 21.0, "venturi": 22.0, "hp_std": 8.68, "peak_rpm": 7500, "limit_std": 9300, "weight_std": 93.0, "valves": 2, "valves_in_std": 1, "valves_out_std": 1, "lift_std": 7.2, "dur_std": 232}
             },
             "125cc": {
-                "Vario 125 eSP": {"bore": 52.4, "stroke": 57.9, "v_head": 14.2, "valve_in": 25.5, "valve_out": 21.0, "venturi": 24.0, "hp_std": 11.1, "peak_rpm": 8500, "limit_std": 9500, "weight_std": 111.0, "valves": 2, "lift_std": 7.8, "dur_std": 235}
+                "Vario 125 eSP": {"bore": 52.4, "stroke": 57.9, "v_head": 14.2, "valve_in": 25.5, "valve_out": 21.0, "venturi": 24.0, "hp_std": 11.1, "peak_rpm": 8500, "limit_std": 9500, "weight_std": 111.0, "valves": 2, "valves_in_std": 1, "valves_out_std": 1, "lift_std": 7.8, "dur_std": 235}
             },
             "150cc": {
-                "Vario 150 / PCX 150": {"bore": 57.3, "stroke": 57.9, "v_head": 15.6, "valve_in": 29.0, "valve_out": 23.0, "venturi": 26.0, "hp_std": 12.92, "peak_rpm": 8500, "limit_std": 9800, "weight_std": 109.0, "valves": 2, "lift_std": 8.0, "dur_std": 235}
+                "Vario 150 / PCX 150": {"bore": 57.3, "stroke": 57.9, "v_head": 15.6, "valve_in": 29.0, "valve_out": 23.0, "venturi": 26.0, "hp_std": 12.92, "peak_rpm": 8500, "limit_std": 9800, "weight_std": 109.0, "valves": 2, "valves_in_std": 1, "valves_out_std": 1, "lift_std": 8.0, "dur_std": 235}
             },
             "160cc": {
-                "Vario 160 / PCX 160": {"bore": 60.0, "stroke": 55.5, "v_head": 12.8, "valve_in": 23.0, "valve_out": 19.5, "venturi": 28.0, "hp_std": 15.4, "peak_rpm": 8500, "limit_std": 10000, "weight_std": 115.0, "valves": 4, "lift_std": 8.5, "dur_std": 245}
+                "Vario 160 / PCX 160": {"bore": 60.0, "stroke": 55.5, "v_head": 12.8, "valve_in": 23.0, "valve_out": 19.5, "venturi": 28.0, "hp_std": 15.4, "peak_rpm": 8500, "limit_std": 10000, "weight_std": 115.0, "valves": 4, "valves_in_std": 2, "valves_out_std": 2, "lift_std": 8.5, "dur_std": 245}
             }
         }
     }
@@ -68,6 +68,10 @@ DATABASE_REF = {
 
 if "history" not in st.session_state:
     st.session_state.history = []
+if "drag_history" not in st.session_state:
+    st.session_state.drag_history = []
+if "mute_audio" not in st.session_state:
+    st.session_state.mute_audio = False
 
 def clamp(value, low, high):
     return max(low, min(high, value))
@@ -310,8 +314,8 @@ def calculate_axis_v22(cc, bore, stroke, cr, rpm_limit, v_in, n_v_in, v_out, n_v
     std_cr = (std_cc + float(std["v_head"])) / float(std["v_head"])
     std_avg_dur = float(std["dur_std"])
     std_lift_ratio = safe_div(float(std["lift_std"]), float(std["valve_in"]), 0.0)
-    std_intake_curtain = curtain_area_mm2(float(std["valve_in"]), float(std["lift_std"]), int(std["valves"]))
-    std_exhaust_curtain = curtain_area_mm2(float(std["valve_out"]), float(std["lift_std"]) * 0.92, max(int(std["valves"] / 2), 1))
+    std_intake_curtain = curtain_area_mm2(float(std["valve_in"]), float(std["lift_std"]), int(std.get("valves_in_std", max(int(std["valves"]) // 2, 1))))
+    std_exhaust_curtain = curtain_area_mm2(float(std["valve_out"]), float(std["lift_std"]) * 0.92, int(std.get("valves_out_std", max(int(std["valves"]) // 2, 1))))
     std_tb_area = area_circle_mm2(float(std["venturi"]))
     std_intake_area = harmonic_mean(std_tb_area * 0.95, std_intake_curtain * 0.80)
     std_exhaust_area = harmonic_mean(std_tb_area * 0.82, std_exhaust_curtain * 0.78)
@@ -420,11 +424,11 @@ with st.sidebar:
         cc_placeholder = st.empty()
     with st.expander("🧪 Detail Expert Tuning", expanded=True):
         in_v_in = st.number_input(f"Klep In (std: {std['valve_in']})", value=float(std["valve_in"]), step=0.1)
-        default_in_idx = [1, 2, 4].index(std["valves"]) if std["valves"] in [1, 2, 4] else 1
-        in_n_v_in = st.selectbox("Jml Klep In", [1, 2, 4], index=default_in_idx)
+        std_in_cnt = int(std.get("valves_in_std", 1))
+        std_out_cnt = int(std.get("valves_out_std", 1))
+        in_n_v_in = st.selectbox("Jml Klep In", [1, 2, 4], index=[1, 2, 4].index(std_in_cnt) if std_in_cnt in [1, 2, 4] else 0)
         in_v_out = st.number_input(f"Klep Out (std: {std['valve_out']})", value=float(std["valve_out"]), step=0.1)
-        out_default_idx = [1, 2, 4].index(max(min(std["valves"], 2), 1)) if max(min(std["valves"], 2), 1) in [1, 2, 4] else 1
-        in_n_v_out = st.selectbox("Jml Klep Out", [1, 2, 4], index=out_default_idx)
+        in_n_v_out = st.selectbox("Jml Klep Out", [1, 2, 4], index=[1, 2, 4].index(std_out_cnt) if std_out_cnt in [1, 2, 4] else 0)
         in_venturi = st.number_input(f"Venturi/TB (std: {std['venturi']})", value=float(std["venturi"]), step=0.5)
         in_v_lift = st.number_input(f"Lift (std: {std['lift_std']})", value=float(std["lift_std"]), step=0.1)
         in_dur_in = st.number_input(f"Durasi In (std: {std['dur_std']})", value=float(std["dur_std"]), step=1.0)
@@ -434,12 +438,22 @@ with st.sidebar:
         in_d_type = st.selectbox("Penggerak", ["CVT", "Rantai"])
     cc_calc = (0.785398 * float(in_bore) ** 2 * float(in_stroke)) / 1000.0
     cc_placeholder.success(f"CC: {cc_calc:.2f}")
-    in_joki = st.number_input("Berat Joki (kg)", value=60.0)
-    run_btn = st.button("🚀 ANALYZE & RUN AXIS")
+
+    st.markdown("---")
+    st.subheader("3️⃣ DYNO")
+    run_dyno_btn = st.button("🚀 ANALYZE & RUN AXIS", use_container_width=True)
+    in_joki = st.number_input("Berat Joki (kg)", value=60.0, step=1.0)
+    final_ratio = st.number_input("Final Ratio", value=1.0, step=0.01)
+
+    st.markdown("---")
+    st.subheader("4️⃣ DRAG")
+    run_drag_btn = st.button("🏁 DRAG SIMULATOR", use_container_width=True)
+    mute_audio = st.toggle("🔇 Mute Audio", value=st.session_state.mute_audio)
+    st.session_state.mute_audio = mute_audio
 
 st.title("📟 Hiar Lima Pendawa Tuning")
 
-if run_btn:
+if run_dyno_btn:
     cr_calc = (cc_calc + float(in_vhead)) / float(in_vhead)
     rpms, hps, torques, peak_pspeed, peak_gsin, peak_gsout, vel_in_list, vel_out_list, ve_list, idx_hp, idx_nm = calculate_axis_v22(
         cc_calc, in_bore, in_stroke, cr_calc, in_rpm, in_v_in, in_n_v_in,
@@ -475,6 +489,7 @@ if st.session_state.history:
     speed_ph = gauge_mid.empty()
     graph_ph = st.empty()
 
+    current_run = st.session_state.history[history_idx]
     frame_buffer = build_dyno_frame_buffer(rpms, hps, torques, float(in_rpm), idle_rpm=1500.0)
 
     # playback only: semua data sudah dihitung dulu
@@ -501,7 +516,7 @@ if st.session_state.history:
             unsafe_allow_html=True
         )
 
-        if frame_idx % 2 == 0:
+        if frame_idx % 3 == 0:
             graph_ph.plotly_chart(
                 build_live_graph(st.session_state.history, current_idx=history_idx, current_rpm=max(rpm_now, 0), current_hp=hp_now, current_nm=nm_now),
                 use_container_width=True,
@@ -521,13 +536,88 @@ if st.session_state.history:
         else:
             time.sleep(0.040)
 
+    st.markdown("<div style='height:14px'></div>", unsafe_allow_html=True)
     for i in range(6):
         tach_ph.markdown(build_needle_gauge("Tachometer", 1800, max(float(in_rpm) + 1500.0, 1500.0), "RPM", float(in_rpm), 1500.0, max(1800.0, float(in_rpm) * 0.92)), unsafe_allow_html=True)
         speed_ph.markdown(build_needle_gauge("Speedometer", 0, speed_max, "km/h", speed_max * 0.82, speed_max * 0.35, speed_max * 0.68), unsafe_allow_html=True)
         graph_ph.plotly_chart(build_live_graph(st.session_state.history, current_idx=history_idx, current_rpm=1800, current_hp=float(np.interp(1800, current_run["rpms"], current_run["hps"])), current_nm=float(np.interp(1800, current_run["rpms"], current_run["torques"]))), use_container_width=True, key=f"graph_idle_{i}")
         time.sleep(0.18)
 
+
+if run_drag_btn and st.session_state.history:
+    latest_drag = st.session_state.history[-1]
+    st.markdown("<div style='height:16px'></div>", unsafe_allow_html=True)
+    st.header("🏁 Drag Simulator")
+
+    drag_left, drag_mid = st.columns(2)
+    drag_tach_ph = drag_left.empty()
+    drag_speed_ph = drag_mid.empty()
+    drag_graph_ph = st.empty()
+
+    # Precompute drag frames (tidak streaming hitung ulang)
+    max_speed = max(120.0, 60.0 + latest_drag["Max_HP"] * 5.0)
+    drag_total_time = float(latest_drag["T1000"]) if "T1000" in latest_drag else 32.8
+    drag_frames = build_drag_frame_buffer(drag_total_time, max_speed, float(in_rpm), idle_rpm=1500.0, steps=90)
+
+    drag_samples = []
+    for idx, f in enumerate(drag_frames):
+        rpm_now = float(f["rpm"])
+        speed_now = float(f["speed"])
+        dist_now = float(f["dist"])
+        drag_samples.append((dist_now, speed_now, rpm_now))
+
+        drag_tach_ph.markdown(
+            build_needle_gauge("Tachometer", rpm_now, max(float(in_rpm) + 1500.0, 1500.0), "RPM", float(in_rpm), 1500.0, max(1800.0, float(in_rpm) * 0.92)),
+            unsafe_allow_html=True
+        )
+        drag_speed_ph.markdown(
+            build_needle_gauge("Speedometer", speed_now, max_speed, "km/h", max_speed * 0.82, max_speed * 0.35, max_speed * 0.68),
+            unsafe_allow_html=True
+        )
+
+        if idx % 3 == 0:
+            g = go.Figure()
+            xs = [x[0] for x in drag_samples]
+            ys = [x[1] for x in drag_samples]
+            g.add_trace(go.Scatter(x=xs, y=ys, line=dict(width=4), showlegend=False))
+            g.update_layout(
+                template="plotly_dark",
+                height=360,
+                xaxis=dict(title="Distance (m)", showgrid=True, gridcolor="#333", range=[0, 1000]),
+                yaxis=dict(title="Speed (km/h)", showgrid=True, gridcolor="#333", range=[0, max_speed * 1.1]),
+                paper_bgcolor="#050505",
+                plot_bgcolor="#050505",
+                margin=dict(l=20, r=20, t=20, b=20),
+                showlegend=False,
+            )
+            drag_graph_ph.plotly_chart(g, use_container_width=True, key=f"drag_graph_{idx}")
+
+        render_engine_audio_once(rpm_now, float(in_rpm))
+
+        if rpm_now <= 0:
+            time.sleep(0.08)
+        elif rpm_now < 1800:
+            time.sleep(0.06)
+        else:
+            time.sleep(max(drag_total_time / max(len(drag_frames), 1), 0.03))
+
+    st.markdown("<div style='height:10px'></div>", unsafe_allow_html=True)
+    st.write("### 📊 Drag Simulation Predictions")
+    dist_100_idx = min(range(len(drag_samples)), key=lambda i: abs(drag_samples[i][0] - 100.0))
+    dist_201_idx = min(range(len(drag_samples)), key=lambda i: abs(drag_samples[i][0] - 201.0))
+    dist_402_idx = min(range(len(drag_samples)), key=lambda i: abs(drag_samples[i][0] - 402.0))
+    drag_df = pd.DataFrame([{
+        "Run": latest_drag["Run"],
+        "0-100 km/h": round(max(2.8, 9.5 / ((latest_drag["Max_HP"] / max(latest_drag["CC"] + 60.0, 1.0)) ** 0.45)), 2),
+        "201m": round(drag_samples[dist_201_idx][0] / max(drag_samples[dist_201_idx][1], 1.0) * 3.6, 2),
+        "402m": round(drag_samples[dist_402_idx][0] / max(drag_samples[dist_402_idx][1], 1.0) * 3.6, 2),
+        "1000m": round(drag_total_time, 2),
+        "Top Speed": round(max_speed, 1),
+    }])
+    st.dataframe(drag_df.style.format({"0-100 km/h": "{:.2f}s", "201m": "{:.2f}", "402m": "{:.2f}", "1000m": "{:.2f}s", "Top Speed": "{:.1f} km/h"}), hide_index=True, use_container_width=True)
+
     df = pd.DataFrame(st.session_state.history)
+    st.markdown("<div style='height:12px'></div>", unsafe_allow_html=True)
     st.write("### 📊 Performance Dyno Result")
     df_perf = df[["Run", "CC", "CR", "AFR", "Max_HP", "RPM_HP", "Max_Nm", "RPM_Nm", "Velocity"]].copy()
     st.dataframe(
@@ -539,6 +629,7 @@ if st.session_state.history:
         use_container_width=True
     )
 
+    st.markdown("<div style='height:12px'></div>", unsafe_allow_html=True)
     st.write("### 🏁 Drag Simulation Predictions")
     df_drag = df[["Run", "T100", "T201", "T402", "T1000"]].rename(columns={"T100": "0-100 km/h", "T201": "201m", "T402": "402m", "T1000": "1000m"})
     st.dataframe(df_drag.style.format({"0-100 km/h": "{:.2f}s", "201m": "{:.2f}s", "402m": "{:.2f}s", "1000m": "{:.2f}s"}), hide_index=True, use_container_width=True)
