@@ -131,10 +131,40 @@ def curtain_area_mm2(valve_d_mm, lift_mm, n_valves):
 def harmonic_mean(a, b):
     return (2.0 * a * b) / max(a + b, 1e-9)
 
-def build_needle_gauge(label, value, max_value, unit, redline, optimal_low, optimal_high, size=360):
+
+def build_needle_gauge(label, value, max_value, unit, redline, optimal_low, optimal_high, size=360, tick_labels=None):
     value = max(0.0, min(float(value), float(max_value)))
-    pct = 0 if max_value <= 0 else value / max_value
+    max_value = max(float(max_value), 1.0)
+    pct = value / max_value
     angle = -135 + (pct * 270)
+
+    if tick_labels is None:
+        tick_labels = [(i, str(i)) for i in range(0, int(max_value) + 1, max(int(max_value) // 5, 1))]
+
+    parsed_ticks = []
+    for item in tick_labels:
+        if isinstance(item, (tuple, list)) and len(item) >= 2:
+            tick_value, tick_text = float(item[0]), str(item[1])
+        else:
+            tick_value, tick_text = float(item), str(item)
+        parsed_ticks.append((tick_value, tick_text))
+
+    def tick_pos(v):
+        p = clamp(float(v) / max_value, 0.0, 1.0)
+        return -135 + (p * 270)
+
+    tick_svg = []
+    for tick_value, tick_text in parsed_ticks:
+        ang = math.radians(tick_pos(tick_value))
+        x1 = 200 + 145 * math.cos(ang)
+        y1 = 200 + 145 * math.sin(ang)
+        x2 = 200 + 126 * math.cos(ang)
+        y2 = 200 + 126 * math.sin(ang)
+        xt = 200 + 165 * math.cos(ang)
+        yt = 200 + 165 * math.sin(ang)
+        tick_svg.append(f'<line x1="{x1:.1f}" y1="{y1:.1f}" x2="{x2:.1f}" y2="{y2:.1f}" stroke="#777" stroke-width="3"/>')
+        tick_svg.append(f'<text x="{xt:.1f}" y="{yt:.1f}" text-anchor="middle" dominant-baseline="middle" fill="#9aa4b2" font-size="14" font-family="Arial">{tick_text}</text>')
+
     return f"""
     <div style="width:100%; max-width:{size}px; margin:auto; background:#050505; border:1px solid #333; border-radius:22px; padding:14px 14px 18px 14px; box-shadow:0 10px 40px rgba(0,0,0,.35);">
       <div style="text-align:center; color:#fff; font-weight:800; font-size:22px; margin-bottom:8px;">{label}</div>
@@ -155,12 +185,7 @@ def build_needle_gauge(label, value, max_value, unit, redline, optimal_low, opti
           <path d="M 132 150 A 135 135 0 0 1 278 150" fill="none" stroke="#1b5c2d" stroke-width="16" stroke-linecap="round"/>
           <path d="M 278 150 A 135 135 0 0 1 312 270" fill="none" stroke="#5b2b16" stroke-width="16" stroke-linecap="round"/>
           <path d="M 312 270 A 135 135 0 0 1 323 296" fill="none" stroke="#7a1212" stroke-width="16" stroke-linecap="round"/>
-          {''.join([f'<line x1="{200 + 145*math.cos(math.radians(-135 + i*27))}" y1="{200 + 145*math.sin(math.radians(-135 + i*27))}" x2="{200 + 128*math.cos(math.radians(-135 + i*27))}" y2="{200 + 128*math.sin(math.radians(-135 + i*27))}" stroke="#777" stroke-width="3"/>' for i in range(11)])}
-          <text x="64" y="286" fill="#9aa4b2" font-size="16" font-family="Arial">0</text>
-          <text x="110" y="150" fill="#9aa4b2" font-size="16" font-family="Arial">{int(max_value*0.25)}</text>
-          <text x="190" y="105" fill="#9aa4b2" font-size="16" font-family="Arial">{int(max_value*0.50)}</text>
-          <text x="272" y="150" fill="#9aa4b2" font-size="16" font-family="Arial">{int(max_value*0.75)}</text>
-          <text x="308" y="286" fill="#9aa4b2" font-size="16" font-family="Arial">{int(max_value)}</text>
+          {''.join(tick_svg)}
           <g transform="rotate({angle} 200 200)" style="transition: transform 0.24s cubic-bezier(0.2, 0.9, 0.2, 1); filter:url(#glow);">
             <line x1="200" y1="205" x2="200" y2="78" stroke="#ff3b30" stroke-width="6" stroke-linecap="round"/>
             <line x1="200" y1="205" x2="200" y2="84" stroke="#ffffff" stroke-width="2" stroke-linecap="round"/>
@@ -173,49 +198,8 @@ def build_needle_gauge(label, value, max_value, unit, redline, optimal_low, opti
     </div>
     """
 
-def _audio_filter_chain_bytes(audio_bytes: bytes) -> bytes:
-    return audio_bytes
-
-def render_engine_audio_once(rpm_now, redline, asset_names=None):
-    if asset_names is None:
-        asset_names = ["assets/superbike_loop.mp3", "superbike_loop.mp3", "engine_loop.mp3"]
-    audio_path = None
-    for name in asset_names:
-        p = Path(name)
-        if p.exists() and p.is_file():
-            audio_path = p
-            break
-    if audio_path is None:
-        return
-    try:
-        audio_b64 = base64.b64encode(_audio_filter_chain_bytes(audio_path.read_bytes())).decode("utf-8")
-        playback_rate = clamp(0.72 + (float(rpm_now) / max(float(redline), 1.0)) * 1.65, 0.72, 2.20)
-        volume = clamp(0.18 + (float(rpm_now) / max(float(redline), 1.0)) * 0.42, 0.18, 0.60)
-        html = f"""
-        <html><body style='margin:0; padding:0; background:transparent; overflow:hidden;'>
-          <audio id='engineAudio' autoplay style='display:none;'>
-            <source src='data:audio/mp3;base64,{audio_b64}' type='audio/mp3'>
-          </audio>
-          <script>
-            const a = document.getElementById('engineAudio');
-            if (a) {{
-              a.loop = false;
-              a.playbackRate = {playback_rate:.4f};
-              a.volume = {volume:.4f};
-              a.play().catch(()=>{{}});
-              a.addEventListener('ended', () => {{
-                a.pause();
-                a.currentTime = 0;
-              }});
-            }}
-          </script>
-        </body></html>
-        """
-        components.html(html, height=0)
-    except Exception:
-        pass
-
 def build_live_graph(history, current_idx=None, current_rpm=None, current_hp=None, current_nm=None):
+
     fig = go.Figure()
     colors = ["rgba(255, 0, 0, 1)", "rgba(0, 255, 0, 1)", "rgba(0, 0, 255, 1)", "rgba(255, 255, 0, 1)", "rgba(255, 0, 255, 1)", "rgba(0, 255, 255, 1)"]
     for i, r in enumerate(history):
@@ -487,7 +471,285 @@ if "show_drag" not in st.session_state:
     st.session_state.show_drag = False
 
 
+
+
+def compute_drag_package(latest, rpm_limit):
+    max_speed = clamp(60.0 + float(latest["Max_HP"]) * 5.0, 110.0, 200.0)
+    drag_total_time = max(6.0, float(latest.get("T1000", 32.8)))
+    frames = build_drag_frame_buffer(drag_total_time, max_speed, float(rpm_limit), idle_rpm=1500.0, steps=90)
+
+    samples = []
+    for f in frames:
+        d = float(f["dist"])
+        s = float(f["speed"])
+        r = float(f["rpm"])
+        t = drag_total_time * (d / 1000.0) ** 1.08
+        samples.append((d, s, r, t))
+
+    def dist_time(target_m):
+        if not samples:
+            return 0.0
+        idx = min(range(len(samples)), key=lambda i: abs(samples[i][0] - target_m))
+        return round(samples[idx][3], 2)
+
+    zero_to_hundred = max(2.8, 9.5 / ((float(latest["Max_HP"]) / max(float(latest["CC"]) + 60.0, 1.0)) ** 0.45))
+    return {
+        "samples": samples,
+        "0-100 km/h": round(zero_to_hundred, 2),
+        "201m": dist_time(201.0),
+        "402m": dist_time(402.0),
+        "1000m": round(drag_total_time, 2),
+        "Top Speed": round(max_speed, 1),
+        "final_rpm": round(frames[-1]["rpm"], 0) if frames else float(rpm_limit),
+        "frames": frames,
+    }
+
+
+def render_expert_analysis(latest):
+    st.header("🏁 Axis Expert Physics Analysis")
+
+    c1, c2, c3 = st.columns(3)
+    lift_ratio = safe_div(latest["lift"], latest["v_in"], 0.0)
+    valve_area_index = safe_div(curtain_area_mm2(latest["v_in"], latest["lift"], 2), area_circle_mm2(latest["venturi"]), 0.0)
+    cr_state = state_from_value(latest["CR"], 9.5, 13.8, 10.0, 12.8)
+    vel_state = state_from_value(latest["Velocity"], 90.0, 118.0, 100.0, 110.0)
+
+    with c1:
+        st.subheader("🧐 Analisa Mesin")
+        st.markdown(
+            f"""
+            - Kapasitas nyata berada di **{latest['CC']:.2f} cc** dengan CR **{latest['CR']:.2f}:1**.
+            - Lift ratio terbaca **{lift_ratio:.3f}** dan indeks area klep vs venturi **{valve_area_index:.3f}**.
+            - Status CR: **{('optimal' if cr_state == 'optimal' else 'aman' if cr_state == 'safe' else 'berisiko')}**.
+            - Status velocity: **{('optimal' if vel_state == 'optimal' else 'aman' if vel_state == 'safe' else 'berisiko')}**.
+            """,
+            unsafe_allow_html=True,
+        )
+
+    with c2:
+        st.subheader("📚 Tips Ahli")
+        if latest["Velocity"] > 115.0:
+            st.warning(f"Velocity {latest['Velocity']:.2f} m/s terlalu tinggi. Intake dan port mulai membatasi aliran di rpm atas.")
+        elif latest["Velocity"] < 90.0:
+            st.info(f"Velocity {latest['Velocity']:.2f} m/s masih rendah. Momentum charge perlu dipadatkan untuk respons bawah.")
+        else:
+            st.success(f"Velocity {latest['Velocity']:.2f} m/s berada di zona kerja ideal untuk karakter 4-stroke yang responsif.")
+
+        if latest["PistonSpeed"] > 23.0:
+            st.error(f"Piston speed {latest['PistonSpeed']:.2f} m/s sudah masuk area stres mekanik tinggi.")
+        elif latest["PistonSpeed"] > 20.0:
+            st.warning(f"Piston speed {latest['PistonSpeed']:.2f} m/s masih aman, tetapi sudah tidak santai.")
+        else:
+            st.success(f"Piston speed {latest['PistonSpeed']:.2f} m/s masih nyaman untuk sesi panjang.")
+
+        if latest["AFR"] < 12.0:
+            st.info(f"AFR {latest['AFR']:.1f} terlalu kaya. Respons bisa terasa berat.")
+        elif latest["AFR"] > 13.5:
+            st.warning(f"AFR {latest['AFR']:.1f} terlalu miskin. Risiko panas meningkat.")
+        else:
+            st.success(f"AFR {latest['AFR']:.1f} masuk zona kerja yang aman.")
+
+    with c3:
+        st.subheader("🛠️ Solusi & Rekomendasi Part")
+        recs = []
+        if latest["Velocity"] > 115.0:
+            recs.append("Buka jalur intake atau perbesar throttle body bertahap.")
+        elif latest["Velocity"] < 90.0:
+            recs.append("Pakai runner/manifold sedikit lebih sempit untuk menaikkan velocity.")
+        if latest["CR"] > 13.2 and latest["material"] == "Casting":
+            recs.append("Naik ke forged piston untuk safety kompresi.")
+        elif latest["CR"] < 10.0:
+            recs.append("Naikkan kompresi agar torsi bawah lebih isi.")
+        if lift_ratio < 0.26:
+            recs.append("Cari profil cam dengan lift lebih tinggi.")
+        elif lift_ratio > 0.34:
+            recs.append("Cek per klep high tension dan valve control.")
+        if latest["PistonSpeed"] > 22.0 or lift_ratio > 0.33:
+            recs.append("Upgrade per klep racing / high tension.")
+        if latest["AFR"] > 13.5:
+            recs.append("Tambah suplai fuel atau revisi mapping.")
+        elif latest["AFR"] < 12.0:
+            recs.append("Kurangi debit fuel agar pembakaran lebih bersih.")
+        if latest["Velocity_Out"] > 118.0:
+            recs.append("Rapikan exhaust / leher knalpot agar backpressure turun.")
+        elif latest["Velocity_Out"] < 92.0:
+            recs.append("Sedikit sempitkan exhaust untuk bantu scavenging.")
+
+        if recs:
+            for rec in recs:
+                st.write(f"• {rec}")
+        else:
+            st.success("Setting saat ini seimbang; perbaikan kecil saja akan lebih terasa di dyno.")
+
+
+def animate_dyno_run(run_result, rpm_limit):
+    frame_buffer = build_dyno_frame_buffer(run_result["rpms"], run_result["hps"], run_result["torques"], float(rpm_limit), idle_rpm=1500.0)
+    live_area = st.container()
+    with live_area:
+        st.markdown("### 🎥 Live Dyno")
+        live_c1, live_c2 = st.columns(2)
+        tach_ph = live_c1.empty()
+        speed_ph = live_c2.empty()
+        graph_ph = st.empty()
+
+        for frame_idx, frame in enumerate(frame_buffer):
+            rpm_now = float(frame["rpm"])
+            hp_now = float(frame["hp"])
+            nm_now = float(frame["nm"])
+
+            tach_ph.markdown(
+                build_needle_gauge(
+                    "Tachometer",
+                    rpm_now,
+                    15000.0,
+                    "RPM",
+                    float(rpm_limit),
+                    0.0,
+                    float(rpm_limit),
+                    tick_labels=[(i * 1000.0, str(i)) for i in range(16)],
+                ),
+                unsafe_allow_html=True,
+            )
+            speed_now = clamp((rpm_now / max(float(rpm_limit), 1.0)) * 200.0, 0.0, 200.0)
+            speed_ph.markdown(
+                build_needle_gauge(
+                    "Speedometer",
+                    speed_now,
+                    200.0,
+                    "km/h",
+                    200.0,
+                    0.0,
+                    200.0,
+                    tick_labels=[(i, str(i)) for i in range(0, 201, 20)],
+                ),
+                unsafe_allow_html=True,
+            )
+
+            if frame_idx % 2 == 0:
+                live_run = dict(run_result)
+                live_run["live_pos"] = min(
+                    int((max(rpm_now, 1.0) / max(float(run_result["rpms"][-1]), 1.0)) * (len(run_result["rpms"]) - 1)),
+                    len(run_result["rpms"]) - 1,
+                )
+                graph_ph.plotly_chart(
+                    build_live_graph([live_run], current_idx=0, current_rpm=rpm_now, current_hp=hp_now, current_nm=nm_now),
+                    use_container_width=True,
+                    key=f"dyno_anim_{frame_idx}",
+                )
+
+            if rpm_now <= 0:
+                time.sleep(0.05)
+            elif rpm_now < 1800:
+                time.sleep(0.04)
+            else:
+                time.sleep(0.03)
+
+    live_area.empty()
+
+
+def animate_drag_run(drag_summary, rpm_limit):
+    frame_buffer = drag_summary.get("frames", [])
+    live_area = st.container()
+    with live_area:
+        st.markdown("### 🎥 Live Drag")
+        live_c1, live_c2 = st.columns(2)
+        tach_ph = live_c1.empty()
+        speed_ph = live_c2.empty()
+        graph_ph = st.empty()
+
+        samples = []
+        for idx, frame in enumerate(frame_buffer):
+            rpm_now = float(frame["rpm"])
+            speed_now = float(frame["speed"])
+            dist_now = float(frame["dist"])
+            samples.append((dist_now, speed_now, rpm_now))
+
+            tach_ph.markdown(
+                build_needle_gauge(
+                    "Tachometer",
+                    rpm_now,
+                    15000.0,
+                    "RPM",
+                    float(rpm_limit),
+                    0.0,
+                    float(rpm_limit),
+                    tick_labels=[(i * 1000.0, str(i)) for i in range(16)],
+                ),
+                unsafe_allow_html=True,
+            )
+            speed_ph.markdown(
+                build_needle_gauge(
+                    "Speedometer",
+                    speed_now,
+                    200.0,
+                    "km/h",
+                    200.0,
+                    0.0,
+                    200.0,
+                    tick_labels=[(i, str(i)) for i in range(0, 201, 20)],
+                ),
+                unsafe_allow_html=True,
+            )
+
+            if idx % 2 == 0:
+                g = go.Figure()
+                xs = [x[0] for x in samples]
+                ys = [x[1] for x in samples]
+                g.add_trace(go.Scatter(x=xs, y=ys, line=dict(width=4), showlegend=False))
+                g.update_layout(
+                    template="plotly_dark",
+                    height=360,
+                    xaxis=dict(title="Distance (m)", showgrid=True, gridcolor="#333", range=[0, 1000]),
+                    yaxis=dict(title="Speed (km/h)", showgrid=True, gridcolor="#333", range=[0, 200]),
+                    paper_bgcolor="#050505",
+                    plot_bgcolor="#050505",
+                    margin=dict(l=20, r=20, t=20, b=20),
+                    showlegend=False,
+                )
+                graph_ph.plotly_chart(g, use_container_width=True, key=f"drag_anim_{idx}")
+
+            if rpm_now <= 0:
+                time.sleep(0.05)
+            elif rpm_now < 1800:
+                time.sleep(0.04)
+            else:
+                time.sleep(0.03)
+
+    live_area.empty()
+
 def render_axis_dashboard(latest, history, rpm_limit):
+    st.header("📟 Dyno Axis")
+    dyno_left, dyno_right = st.columns(2)
+    with dyno_left:
+        st.markdown(
+            build_needle_gauge(
+                "Tachometer",
+                float(latest["RPM_HP"]),
+                15000.0,
+                "RPM",
+                float(rpm_limit),
+                0.0,
+                float(rpm_limit),
+                tick_labels=[(i * 1000.0, str(i)) for i in range(16)],
+            ),
+            unsafe_allow_html=True,
+        )
+    with dyno_right:
+        dyno_speed = clamp(60.0 + float(latest["Max_HP"]) * 5.0, 0.0, 200.0)
+        st.markdown(
+            build_needle_gauge(
+                "Speedometer",
+                dyno_speed,
+                200.0,
+                "km/h",
+                200.0,
+                0.0,
+                200.0,
+                tick_labels=[(i, str(i)) for i in range(0, 201, 20)],
+            ),
+            unsafe_allow_html=True,
+        )
+
     st.header("🌪️ Flowbench & Physical Analysis")
     m1, m2, m3, m4, m5 = st.columns(5)
     with m1:
@@ -501,47 +763,17 @@ def render_axis_dashboard(latest, history, rpm_limit):
     with m5:
         st.metric("Flow Out (est)", f"{round((latest['v_out'] / 25.4) ** 2 * 146, 1)} CFM")
 
-    st.markdown("### 📟 Dyno Axis")
-    dyno_left, dyno_right = st.columns([1, 1])
-    with dyno_left:
-        st.markdown(
-            build_needle_gauge(
-                "Tachometer",
-                float(latest['RPM_HP']),
-                max(float(rpm_limit) + 1500.0, 1500.0),
-                "RPM",
-                float(rpm_limit),
-                1500.0,
-                max(1800.0, float(rpm_limit) * 0.92),
-            ),
-            unsafe_allow_html=True,
-        )
-    with dyno_right:
-        dyno_speed = max(120.0, 60.0 + float(latest['Max_HP']) * 5.0)
-        st.markdown(
-            build_needle_gauge(
-                "Speedometer",
-                dyno_speed,
-                dyno_speed,
-                "km/h",
-                dyno_speed * 0.82,
-                dyno_speed * 0.35,
-                dyno_speed * 0.68,
-            ),
-            unsafe_allow_html=True,
-        )
-
-    st.markdown("### 📈 Grafik Axis")
+    st.header("📈 Grafik Axis")
     axis_fig = build_live_graph(
         history,
         current_idx=len(history) - 1,
-        current_rpm=float(latest['RPM_HP']),
-        current_hp=float(latest['Max_HP']),
-        current_nm=float(latest['Max_Nm']),
+        current_rpm=float(latest["RPM_HP"]),
+        current_hp=float(latest["Max_HP"]),
+        current_nm=float(latest["Max_Nm"]),
     )
     st.plotly_chart(axis_fig, use_container_width=True)
 
-    st.markdown("### 📊 Tabel Axis")
+    st.header("📊 Tabel Axis")
     df = pd.DataFrame(history)
     df_perf = df[["Run", "CC", "CR", "AFR", "Max_HP", "RPM_HP", "Max_Nm", "RPM_Nm", "Velocity"]].copy()
     st.dataframe(
@@ -556,19 +788,21 @@ def render_axis_dashboard(latest, history, rpm_limit):
     render_expert_analysis(latest)
 
 
+
 def render_drag_dashboard(latest, drag_summary, rpm_limit):
     st.header("🏁 Drag Simulator")
-    drag_left, drag_right = st.columns([1, 1])
+    drag_left, drag_right = st.columns(2)
     with drag_left:
         st.markdown(
             build_needle_gauge(
                 "Tachometer",
-                float(drag_summary['samples'][-1][2]),
-                max(float(rpm_limit) + 1500.0, 1500.0),
+                float(drag_summary["final_rpm"]),
+                15000.0,
                 "RPM",
                 float(rpm_limit),
-                1500.0,
-                max(1800.0, float(rpm_limit) * 0.92),
+                0.0,
+                float(rpm_limit),
+                tick_labels=[(i * 1000.0, str(i)) for i in range(16)],
             ),
             unsafe_allow_html=True,
         )
@@ -576,26 +810,27 @@ def render_drag_dashboard(latest, drag_summary, rpm_limit):
         st.markdown(
             build_needle_gauge(
                 "Speedometer",
-                float(drag_summary['Top Speed']),
-                float(drag_summary['Top Speed']),
+                float(drag_summary["Top Speed"]),
+                200.0,
                 "km/h",
-                float(drag_summary['Top Speed']) * 0.82,
-                float(drag_summary['Top Speed']) * 0.35,
-                float(drag_summary['Top Speed']) * 0.68,
+                200.0,
+                0.0,
+                200.0,
+                tick_labels=[(i, str(i)) for i in range(0, 201, 20)],
             ),
             unsafe_allow_html=True,
         )
 
-    st.markdown("### 📈 Grafik Drag")
+    st.header("📈 Grafik Drag")
     drag_fig = go.Figure()
-    xs = [x[0] for x in drag_summary['samples']]
-    ys = [x[1] for x in drag_summary['samples']]
+    xs = [x[0] for x in drag_summary["samples"]]
+    ys = [x[1] for x in drag_summary["samples"]]
     drag_fig.add_trace(go.Scatter(x=xs, y=ys, line=dict(width=4), showlegend=False))
     drag_fig.update_layout(
         template="plotly_dark",
         height=420,
         xaxis=dict(title="Distance (m)", showgrid=True, gridcolor="#333", range=[0, 1000]),
-        yaxis=dict(title="Speed (km/h)", showgrid=True, gridcolor="#333", range=[0, float(drag_summary['Top Speed']) * 1.1]),
+        yaxis=dict(title="Speed (km/h)", showgrid=True, gridcolor="#333", range=[0, 200]),
         paper_bgcolor="#050505",
         plot_bgcolor="#050505",
         margin=dict(l=20, r=20, t=20, b=20),
@@ -603,7 +838,7 @@ def render_drag_dashboard(latest, drag_summary, rpm_limit):
     )
     st.plotly_chart(drag_fig, use_container_width=True)
 
-    st.markdown("### 📊 Tabel Drag")
+    st.header("📊 Tabel Drag")
     drag_df = pd.DataFrame([{
         "Run": latest["Run"],
         "0-100 km/h": drag_summary["0-100 km/h"],
@@ -618,6 +853,14 @@ def render_drag_dashboard(latest, drag_summary, rpm_limit):
         use_container_width=True,
     )
 
+
+
+if "show_drag" not in st.session_state:
+    st.session_state.show_drag = False
+if "last_drag" not in st.session_state:
+    st.session_state.last_drag = None
+if "pending_dyno_playback" not in st.session_state:
+    st.session_state.pending_dyno_playback = None
 
 if run_dyno_btn:
     cr_calc = (cc_calc + float(in_vhead)) / float(in_vhead)
@@ -640,6 +883,7 @@ if run_dyno_btn:
     }
     st.session_state.history.append(run_result)
     st.session_state.last_run = run_result
+    st.session_state.pending_dyno_playback = len(st.session_state.history) - 1
     st.session_state.show_drag = False
 
 if run_drag_btn and st.session_state.get("history"):
@@ -647,12 +891,19 @@ if run_drag_btn and st.session_state.get("history"):
     st.session_state.last_drag = compute_drag_package(latest_drag, in_rpm)
     st.session_state.show_drag = True
 
+if st.session_state.get("pending_dyno_playback") is not None and st.session_state.get("history"):
+    idx = int(st.session_state.pending_dyno_playback)
+    idx = clamp(idx, 0, len(st.session_state.history) - 1)
+    animate_dyno_run(st.session_state.history[int(idx)], in_rpm)
+    st.session_state.pending_dyno_playback = None
+
 if st.session_state.get("history"):
     latest = st.session_state.history[-1]
     render_axis_dashboard(latest, st.session_state.history, in_rpm)
 
     if st.session_state.get("show_drag") and st.session_state.get("last_drag"):
         st.markdown("---")
+        animate_drag_run(st.session_state.last_drag, in_rpm)
         render_drag_dashboard(latest, st.session_state.last_drag, in_rpm)
 
 st.write("---")
