@@ -491,6 +491,10 @@ if st.session_state.history:
 
     history_idx = len(st.session_state.history) - 1
     current_run = st.session_state.history[history_idx]
+    speed_max = max(120.0, 60.0 + current_run["Max_HP"] * 5.0)
+    rpms = current_run["rpms"]
+    hps = current_run["hps"]
+    torques = current_run["torques"]
     frame_buffer = build_dyno_frame_buffer(rpms, hps, torques, float(in_rpm), idle_rpm=1500.0)
 
     # playback only: semua data sudah dihitung dulu
