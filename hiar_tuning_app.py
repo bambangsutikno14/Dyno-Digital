@@ -489,6 +489,7 @@ if st.session_state.history:
     speed_ph = gauge_mid.empty()
     graph_ph = st.empty()
 
+    history_idx = len(st.session_state.history) - 1
     current_run = st.session_state.history[history_idx]
     frame_buffer = build_dyno_frame_buffer(rpms, hps, torques, float(in_rpm), idle_rpm=1500.0)
 
