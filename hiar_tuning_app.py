@@ -235,6 +235,7 @@ def build_live_graph(history, current_idx=None, current_rpm=None, current_hp=Non
         fig.add_trace(go.Scatter(x=[current_rpm], y=[current_nm], mode="markers", marker=dict(size=10, color="#FFFFFF", line=dict(color=color, width=2)), name="Live Torque", yaxis="y2", showlegend=False))
         fig.add_vline(x=current_rpm, line_width=1, line_dash="dash", line_color="rgba(255,255,255,0.5)")
     fig.update_layout(template="plotly_dark", height=560, showlegend=False, xaxis=dict(title="Engine RPM", showgrid=True, gridcolor="#333", dtick=1000), yaxis=dict(title="Power (HP)", showgrid=True, gridcolor="#333"), yaxis2=dict(overlaying="y", side="right", title="Torque (Nm)", showgrid=False), paper_bgcolor="#050505", plot_bgcolor="#050505", margin=dict(l=30, r=30, t=20, b=20))
+    return fig
 
 
 def build_dyno_frame_buffer(rpms, hps, torques, rpm_limit, idle_rpm=1500.0):
@@ -301,6 +302,32 @@ def build_dyno_frame_buffer(rpms, hps, torques, rpm_limit, idle_rpm=1500.0):
             "hp": float(np.interp(r, rpms, hps)),
             "nm": float(np.interp(r, rpms, torques)),
         })
+
+    return frames
+
+
+def build_drag_frame_buffer(drag_total_time, max_speed, rpm_limit, idle_rpm=1500.0, steps=90):
+    """
+    Buat frame simulasi drag yang stabil dan konsisten untuk visualisasi.
+    """
+    steps = max(int(steps), 20)
+    frames = []
+
+    dist_points = np.linspace(0.0, 1000.0, steps)
+    for d in dist_points:
+        t = float(d) / 1000.0
+        speed = float(max_speed) * (1.0 - math.exp(-3.0 * t))
+        speed = clamp(speed, 0.0, float(max_speed))
+        rpm = float(idle_rpm) + (speed / max(float(max_speed), 1e-6)) * (float(rpm_limit) - float(idle_rpm))
+        rpm = clamp(rpm, 0.0, float(rpm_limit) * 1.03)
+        frames.append({
+            "dist": float(d),
+            "speed": float(speed),
+            "rpm": float(rpm),
+        })
+
+    if frames:
+        frames[-1] = {"dist": 1000.0, "speed": float(max_speed), "rpm": float(rpm_limit) * 0.98}
 
     return frames
 
@@ -497,17 +524,6 @@ if st.session_state.history:
     torques = current_run["torques"]
     frame_buffer = build_dyno_frame_buffer(rpms, hps, torques, float(in_rpm), idle_rpm=1500.0)
 
-# --- safety aliases to avoid NameError in live playback ---
-if "rpms" not in locals():
-    rpms = current_run["rpms"]
-if "hps" not in locals():
-    hps = current_run["hps"]
-if "torques" not in locals():
-    torques = current_run["torques"]
-if "speed_max" not in locals():
-    speed_max = max(120.0, 60.0 + current_run["Max_HP"] * 5.0)
-
-
     # playback only: semua data sudah dihitung dulu
     for frame_idx, frame in enumerate(frame_buffer):
         rpm_now = frame["rpm"]
@@ -558,7 +574,6 @@ if "speed_max" not in locals():
         speed_ph.markdown(build_needle_gauge("Speedometer", 0, speed_max, "km/h", speed_max * 0.82, speed_max * 0.35, speed_max * 0.68), unsafe_allow_html=True)
         graph_ph.plotly_chart(build_live_graph(st.session_state.history, current_idx=history_idx, current_rpm=1800, current_hp=float(np.interp(1800, current_run["rpms"], current_run["hps"])), current_nm=float(np.interp(1800, current_run["rpms"], current_run["torques"]))), use_container_width=True, key=f"graph_idle_{i}")
         time.sleep(0.18)
-
 
 if run_drag_btn and st.session_state.history:
     latest_drag = st.session_state.history[-1]
