@@ -497,6 +497,17 @@ if st.session_state.history:
     torques = current_run["torques"]
     frame_buffer = build_dyno_frame_buffer(rpms, hps, torques, float(in_rpm), idle_rpm=1500.0)
 
+# --- safety aliases to avoid NameError in live playback ---
+if "rpms" not in locals():
+    rpms = current_run["rpms"]
+if "hps" not in locals():
+    hps = current_run["hps"]
+if "torques" not in locals():
+    torques = current_run["torques"]
+if "speed_max" not in locals():
+    speed_max = max(120.0, 60.0 + current_run["Max_HP"] * 5.0)
+
+
     # playback only: semua data sudah dihitung dulu
     for frame_idx, frame in enumerate(frame_buffer):
         rpm_now = frame["rpm"]
@@ -639,7 +650,35 @@ if run_drag_btn and st.session_state.history:
     df_drag = df[["Run", "T100", "T201", "T402", "T1000"]].rename(columns={"T100": "0-100 km/h", "T201": "201m", "T402": "402m", "T1000": "1000m"})
     st.dataframe(df_drag.style.format({"0-100 km/h": "{:.2f}s", "201m": "{:.2f}s", "402m": "{:.2f}s", "1000m": "{:.2f}s"}), hide_index=True, use_container_width=True)
 
+    # FINAL RENDER AFTER PLAYBACK (prevents graph/table from disappearing)
+    final_fig = build_live_graph(
+        st.session_state.history,
+        current_idx=history_idx,
+        current_rpm=float(current_run["rpms"][-1]),
+        current_hp=float(current_run["hps"][-1]),
+        current_nm=float(current_run["torques"][-1]),
+    )
+    st.plotly_chart(final_fig, use_container_width=True)
+
+    df = pd.DataFrame(st.session_state.history)
+    st.write("### 📊 Performance Dyno Result")
+    df_perf = df[["Run", "CC", "CR", "AFR", "Max_HP", "RPM_HP", "Max_Nm", "RPM_Nm", "Velocity"]].copy()
+    st.dataframe(
+        df_perf.style.format({"CC": "{:.2f}", "CR": "{:.2f}", "AFR": "{:.2f}", "Max_HP": "{:.2f}", "Max_Nm": "{:.2f}", "Velocity": "{:.2f}"})
+        .map(lambda v: style_state(v, "cr"), subset=["CR"])
+        .map(lambda v: style_state(v, "vel"), subset=["Velocity"])
+        .map(lambda v: style_state(v, "afr"), subset=["AFR"]),
+        hide_index=True,
+        use_container_width=True
+    )
+
+    st.write("### 🏁 Drag Simulation Predictions")
+    df_drag = df[["Run", "T100", "T201", "T402", "T1000"]].rename(columns={"T100": "0-100 km/h", "T201": "201m", "T402": "402m", "T1000": "1000m"})
+    st.dataframe(df_drag.style.format({"0-100 km/h": "{:.2f}s", "201m": "{:.2f}s", "402m": "{:.2f}s", "1000m": "{:.2f}s"}), hide_index=True, use_container_width=True)
+
     st.divider()
+    st.header("🏁 Axis Expert Physics Analysis")
+
     st.header("🏁 Axis Expert Physics Analysis")
 
     c1, c2, c3 = st.columns(3)
