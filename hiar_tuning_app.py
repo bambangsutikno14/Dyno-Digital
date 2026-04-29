@@ -468,9 +468,12 @@ with st.sidebar:
 
     st.markdown("---")
     st.subheader("3️⃣ DYNO")
+    col_joki, col_ratio = st.columns(2)
+    with col_joki:
+        in_joki = st.number_input("Berat Joki (kg)", value=60.0, step=1.0)
+    with col_ratio:
+        final_ratio = st.number_input("Final Ratio", value=1.0, step=0.01)
     run_dyno_btn = st.button("🚀 ANALYZE & RUN AXIS", use_container_width=True)
-    in_joki = st.number_input("Berat Joki (kg)", value=60.0, step=1.0)
-    final_ratio = st.number_input("Final Ratio", value=1.0, step=0.01)
 
     st.markdown("---")
     st.subheader("4️⃣ DRAG")
@@ -480,112 +483,140 @@ with st.sidebar:
 
 st.title("📟 Hiar Lima Pendawa Tuning")
 
-
-def compute_drag_package(latest_run, rpm_limit):
-    max_speed = max(120.0, 60.0 + float(latest_run["Max_HP"]) * 5.0)
-    drag_total_time = float(latest_run.get("T1000", 32.8))
-    drag_frames = build_drag_frame_buffer(drag_total_time, max_speed, float(rpm_limit), idle_rpm=1500.0, steps=90)
-    drag_samples = []
-    for f in drag_frames:
-        drag_samples.append((float(f["dist"]), float(f["speed"]), float(f["rpm"])))
-    dist_100_idx = min(range(len(drag_samples)), key=lambda i: abs(drag_samples[i][0] - 100.0))
-    dist_201_idx = min(range(len(drag_samples)), key=lambda i: abs(drag_samples[i][0] - 201.0))
-    dist_402_idx = min(range(len(drag_samples)), key=lambda i: abs(drag_samples[i][0] - 402.0))
-    summary = {
-        "0-100 km/h": round(max(2.8, 9.5 / ((float(latest_run["Max_HP"]) / max(float(latest_run["CC"]) + 60.0, 1.0)) ** 0.45)), 2),
-        "201m": round(drag_samples[dist_201_idx][0] / max(drag_samples[dist_201_idx][1], 1.0) * 3.6, 2),
-        "402m": round(drag_samples[dist_402_idx][0] / max(drag_samples[dist_402_idx][1], 1.0) * 3.6, 2),
-        "1000m": round(drag_total_time, 2),
-        "Top Speed": round(max_speed, 1),
-        "frames": drag_frames,
-        "samples": drag_samples,
-    }
-    return summary
+if "show_drag" not in st.session_state:
+    st.session_state.show_drag = False
 
 
-def render_expert_analysis(latest):
-    st.divider()
-    st.header("🏁 Axis Expert Physics Analysis")
+def render_axis_dashboard(latest, history, rpm_limit):
+    st.header("🌪️ Flowbench & Physical Analysis")
+    m1, m2, m3, m4, m5 = st.columns(5)
+    with m1:
+        st.metric("Gas Speed In", f"{latest['gsin']:.2f} m/s")
+    with m2:
+        st.metric("Gas Speed Out", f"{latest['gsout']:.2f} m/s")
+    with m3:
+        st.metric("Piston Speed", f"{latest['pspeed']:.2f} m/s")
+    with m4:
+        st.metric("Flow In (est)", f"{round((latest['v_in'] / 25.4) ** 2 * 146, 1)} CFM")
+    with m5:
+        st.metric("Flow Out (est)", f"{round((latest['v_out'] / 25.4) ** 2 * 146, 1)} CFM")
 
-    c1, c2, c3 = st.columns(3)
-    lift_ratio = safe_div(latest["lift"], latest["v_in"], 0.0)
-    valve_area_index = safe_div(curtain_area_mm2(latest["v_in"], latest["lift"], 2), area_circle_mm2(latest["venturi"]), 0.0)
-    sig = param_signature(latest["CC"], latest["CR"], latest["AFR"], latest["Max_HP"], latest["RPM_HP"], latest["Max_Nm"], latest["Velocity"], latest["Velocity_Out"], latest["PistonSpeed"], latest["bore"], latest["stroke"], latest["v_in"], latest["v_out"], latest["lift"], latest["venturi"], latest["material"])
-    cr_state = state_from_value(latest["CR"], 9.5, 13.8, 10.0, 12.8)
-    vel_state = state_from_value(latest["Velocity"], 90.0, 99.9, 100.0, 110.0)
+    st.markdown("### 📟 Dyno Axis")
+    dyno_left, dyno_right = st.columns([1, 1])
+    with dyno_left:
+        st.markdown(
+            build_needle_gauge(
+                "Tachometer",
+                float(latest['RPM_HP']),
+                max(float(rpm_limit) + 1500.0, 1500.0),
+                "RPM",
+                float(rpm_limit),
+                1500.0,
+                max(1800.0, float(rpm_limit) * 0.92),
+            ),
+            unsafe_allow_html=True,
+        )
+    with dyno_right:
+        dyno_speed = max(120.0, 60.0 + float(latest['Max_HP']) * 5.0)
+        st.markdown(
+            build_needle_gauge(
+                "Speedometer",
+                dyno_speed,
+                dyno_speed,
+                "km/h",
+                dyno_speed * 0.82,
+                dyno_speed * 0.35,
+                dyno_speed * 0.68,
+            ),
+            unsafe_allow_html=True,
+        )
 
-    with c1:
-        st.subheader("🧐 1. Analisa Spek Mesin")
-        st.markdown(f"- Kapasitas nyata **{latest['CC']:.2f} cc**.")
-        st.markdown(f"- Rasio kompresi aktual **{latest['CR']:.2f}:1**.")
-        st.markdown(f"- Efisiensi lift terhadap klep in **{(lift_ratio * 100):.1f}%**.")
-        st.markdown(f"- Indeks area klep vs venturi **{valve_area_index:.3f}**.")
-        st.markdown(f"- {color_tag('Status CR: ' + ('optimal' if cr_state == 'optimal' else 'aman' if cr_state == 'safe' else 'berisiko'), cr_state if cr_state in ['safe', 'optimal'] else 'risk')}", unsafe_allow_html=True)
-        st.markdown(f"- {color_tag('Status Velocity: ' + ('optimal' if vel_state == 'optimal' else 'aman' if vel_state == 'safe' else 'berisiko'), vel_state if vel_state in ['safe', 'optimal'] else 'risk')}", unsafe_allow_html=True)
+    st.markdown("### 📈 Grafik Axis")
+    axis_fig = build_live_graph(
+        history,
+        current_idx=len(history) - 1,
+        current_rpm=float(latest['RPM_HP']),
+        current_hp=float(latest['Max_HP']),
+        current_nm=float(latest['Max_Nm']),
+    )
+    st.plotly_chart(axis_fig, use_container_width=True)
 
-    with c2:
-        st.subheader("📚 2. Saran Ahli (Teori)")
-        if latest["Velocity"] > 115.0:
-            st.markdown(f"<span style='color:#ff4d4f'>Velocity {latest['Velocity']:.2f} m/s terlalu tinggi. Intake mulai choke.</span>", unsafe_allow_html=True)
-        elif latest["Velocity"] < 90.0:
-            st.markdown(f"<span style='color:#3ba3ff'>Velocity {latest['Velocity']:.2f} m/s masih rendah. Momentum charge belum padat.</span>", unsafe_allow_html=True)
-        else:
-            st.markdown(f"<span style='color:#39d353'>Velocity {latest['Velocity']:.2f} m/s berada di zona ideal.</span>", unsafe_allow_html=True)
+    st.markdown("### 📊 Tabel Axis")
+    df = pd.DataFrame(history)
+    df_perf = df[["Run", "CC", "CR", "AFR", "Max_HP", "RPM_HP", "Max_Nm", "RPM_Nm", "Velocity"]].copy()
+    st.dataframe(
+        df_perf.style.format({"CC": "{:.2f}", "CR": "{:.2f}", "AFR": "{:.2f}", "Max_HP": "{:.2f}", "Max_Nm": "{:.2f}", "Velocity": "{:.2f}"})
+        .map(lambda v: style_state(v, "cr"), subset=["CR"])
+        .map(lambda v: style_state(v, "vel"), subset=["Velocity"])
+        .map(lambda v: style_state(v, "afr"), subset=["AFR"]),
+        hide_index=True,
+        use_container_width=True,
+    )
 
-        if lift_ratio < 0.24:
-            st.markdown(f"<span style='color:#3ba3ff'>Lift ratio {lift_ratio:.3f} masih jinak untuk karakter head ini.</span>", unsafe_allow_html=True)
-        elif lift_ratio > 0.34:
-            st.markdown(f"<span style='color:#ff4d4f'>Lift ratio {lift_ratio:.3f} agresif. Cek valve train dan pegas klep.</span>", unsafe_allow_html=True)
-        else:
-            st.markdown(f"<span style='color:#39d353'>Lift ratio {lift_ratio:.3f} sehat untuk flow dan durabilitas.</span>", unsafe_allow_html=True)
+    render_expert_analysis(latest)
 
-        if latest["PistonSpeed"] > 23.0:
-            st.markdown(f"<span style='color:#ff4d4f'>Piston speed {latest['PistonSpeed']:.2f} m/s masuk area kerja berat.</span>", unsafe_allow_html=True)
-        elif latest["PistonSpeed"] > 20.0:
-            st.markdown(f"<span style='color:#3ba3ff'>Piston speed {latest['PistonSpeed']:.2f} m/s masih aman namun tidak santai.</span>", unsafe_allow_html=True)
-        else:
-            st.markdown(f"<span style='color:#39d353'>Piston speed {latest['PistonSpeed']:.2f} m/s masih nyaman.</span>", unsafe_allow_html=True)
 
-    with c3:
-        st.subheader("🛠️ 3. Solusi & Rekomendasi Part")
-        if latest["Velocity"] > 115.0:
-            st.info(f"Intake/TB perlu dirapikan atau dibesarkan. Velocity {latest['Velocity']:.2f} m/s sudah padat.")
-        elif latest["Velocity"] < 90.0:
-            st.info(f"Intake runner bisa dipadatkan agar velocity naik ke zona 100–110 m/s.")
-        if latest["CR"] > 13.2 and latest["material"] == "Casting":
-            st.error(f"CR {latest['CR']:.2f}:1 terlalu agresif untuk piston casting.")
-        elif latest["CR"] < 10.0:
-            st.info(f"Compression masih rendah. CR {latest['CR']:.2f}:1 perlu dinaikkan.")
-        if lift_ratio < 0.26:
-            st.info(f"Camshaft perlu lift minimal sekitar {latest['v_in'] * 0.30:.2f} mm.")
-        elif lift_ratio > 0.34:
-            st.warning("Lift terlalu tinggi. Cek per klep dan geometri valvetrain.")
-        if latest["PistonSpeed"] > 22.0 or lift_ratio > 0.33:
-            st.warning("Per klep high tension disarankan untuk rpm tinggi.")
-        if latest["AFR"] > 13.5:
-            st.warning("AFR terlalu kering. Tambah suplai BBM.")
-        elif latest["AFR"] < 12.0:
-            st.info("AFR terlalu basah. Kurangi debit bahan bakar.")
-        if latest["Velocity_Out"] > 118.0:
-            st.error("Exhaust terlalu menahan gas. Perbesar leher atau rapikan outlet.")
-        elif latest["Velocity_Out"] < 92.0:
-            st.info("Exhaust terlalu lega. Sedikit penyempitan bisa bantu scavenging.")
-        if not any([
-            latest["Velocity"] > 115.0,
-            latest["Velocity"] < 90.0,
-            latest["CR"] > 13.2 and latest["material"] == "Casting",
-            latest["CR"] < 10.0,
-            lift_ratio < 0.26,
-            lift_ratio > 0.34,
-            latest["PistonSpeed"] > 22.0 or lift_ratio > 0.33,
-            latest["AFR"] > 13.5,
-            latest["AFR"] < 12.0,
-            latest["Velocity_Out"] > 118.0,
-            latest["Velocity_Out"] < 92.0,
-        ]):
-            st.success("Setingan saat ini seimbang. Tinggal fine tuning kecil.")
+def render_drag_dashboard(latest, drag_summary, rpm_limit):
+    st.header("🏁 Drag Simulator")
+    drag_left, drag_right = st.columns([1, 1])
+    with drag_left:
+        st.markdown(
+            build_needle_gauge(
+                "Tachometer",
+                float(drag_summary['samples'][-1][2]),
+                max(float(rpm_limit) + 1500.0, 1500.0),
+                "RPM",
+                float(rpm_limit),
+                1500.0,
+                max(1800.0, float(rpm_limit) * 0.92),
+            ),
+            unsafe_allow_html=True,
+        )
+    with drag_right:
+        st.markdown(
+            build_needle_gauge(
+                "Speedometer",
+                float(drag_summary['Top Speed']),
+                float(drag_summary['Top Speed']),
+                "km/h",
+                float(drag_summary['Top Speed']) * 0.82,
+                float(drag_summary['Top Speed']) * 0.35,
+                float(drag_summary['Top Speed']) * 0.68,
+            ),
+            unsafe_allow_html=True,
+        )
 
-    st.markdown("---")
+    st.markdown("### 📈 Grafik Drag")
+    drag_fig = go.Figure()
+    xs = [x[0] for x in drag_summary['samples']]
+    ys = [x[1] for x in drag_summary['samples']]
+    drag_fig.add_trace(go.Scatter(x=xs, y=ys, line=dict(width=4), showlegend=False))
+    drag_fig.update_layout(
+        template="plotly_dark",
+        height=420,
+        xaxis=dict(title="Distance (m)", showgrid=True, gridcolor="#333", range=[0, 1000]),
+        yaxis=dict(title="Speed (km/h)", showgrid=True, gridcolor="#333", range=[0, float(drag_summary['Top Speed']) * 1.1]),
+        paper_bgcolor="#050505",
+        plot_bgcolor="#050505",
+        margin=dict(l=20, r=20, t=20, b=20),
+        showlegend=False,
+    )
+    st.plotly_chart(drag_fig, use_container_width=True)
+
+    st.markdown("### 📊 Tabel Drag")
+    drag_df = pd.DataFrame([{
+        "Run": latest["Run"],
+        "0-100 km/h": drag_summary["0-100 km/h"],
+        "201m": drag_summary["201m"],
+        "402m": drag_summary["402m"],
+        "1000m": drag_summary["1000m"],
+        "Top Speed": drag_summary["Top Speed"],
+    }])
+    st.dataframe(
+        drag_df.style.format({"0-100 km/h": "{:.2f}s", "201m": "{:.2f}s", "402m": "{:.2f}s", "1000m": "{:.2f}s", "Top Speed": "{:.1f} km/h"}),
+        hide_index=True,
+        use_container_width=True,
+    )
 
 
 if run_dyno_btn:
@@ -609,114 +640,20 @@ if run_dyno_btn:
     }
     st.session_state.history.append(run_result)
     st.session_state.last_run = run_result
-    st.session_state.last_drag = compute_drag_package(run_result, in_rpm)
+    st.session_state.show_drag = False
+
+if run_drag_btn and st.session_state.get("history"):
+    latest_drag = st.session_state.history[-1]
+    st.session_state.last_drag = compute_drag_package(latest_drag, in_rpm)
+    st.session_state.show_drag = True
 
 if st.session_state.get("history"):
     latest = st.session_state.history[-1]
-    if run_drag_btn:
-        st.session_state.last_drag = compute_drag_package(latest, in_rpm)
+    render_axis_dashboard(latest, st.session_state.history, in_rpm)
 
-    st.header("🌪️ Flowbench & Physical Analysis")
-    m1, m2, m3, m4, m5 = st.columns(5)
-    with m1:
-        st.metric("Gas Speed In", f"{latest['gsin']:.2f} m/s")
-    with m2:
-        st.metric("Gas Speed Out", f"{latest['gsout']:.2f} m/s")
-    with m3:
-        st.metric("Piston Speed", f"{latest['pspeed']:.2f} m/s")
-    with m4:
-        st.metric("Flow In (est)", f"{round((latest['v_in'] / 25.4) ** 2 * 146, 1)} CFM")
-    with m5:
-        st.metric("Flow Out (est)", f"{round((latest['v_out'] / 25.4) ** 2 * 146, 1)} CFM")
-
-    st.markdown("### 📟 Dyno Result")
-    dyno_left, dyno_mid, dyno_right = st.columns([1, 1, 2])
-    with dyno_left:
-        st.markdown(build_needle_gauge("Tachometer", float(latest["RPM_HP"]), max(float(in_rpm) + 1500.0, 1500.0), "RPM", float(in_rpm), 1500.0, max(1800.0, float(in_rpm) * 0.92)), unsafe_allow_html=True)
-    with dyno_mid:
-        dyno_speed = max(120.0, 60.0 + float(latest["Max_HP"]) * 5.0)
-        st.markdown(build_needle_gauge("Speedometer", dyno_speed, dyno_speed, "km/h", dyno_speed * 0.82, dyno_speed * 0.35, dyno_speed * 0.68), unsafe_allow_html=True)
-    with dyno_right:
-        st.plotly_chart(
-            build_live_graph(st.session_state.history, current_idx=len(st.session_state.history) - 1, current_rpm=float(latest["RPM_HP"]), current_hp=float(latest["Max_HP"]), current_nm=float(latest["Max_Nm"])),
-            use_container_width=True
-        )
-
-    st.markdown("### 📊 Performance Dyno Result")
-    df = pd.DataFrame(st.session_state.history)
-    df_perf = df[["Run", "CC", "CR", "AFR", "Max_HP", "RPM_HP", "Max_Nm", "RPM_Nm", "Velocity"]].copy()
-    st.dataframe(
-        df_perf.style.format({"CC": "{:.2f}", "CR": "{:.2f}", "AFR": "{:.2f}", "Max_HP": "{:.2f}", "Max_Nm": "{:.2f}", "Velocity": "{:.2f}"})
-        .map(lambda v: style_state(v, "cr"), subset=["CR"])
-        .map(lambda v: style_state(v, "vel"), subset=["Velocity"])
-        .map(lambda v: style_state(v, "afr"), subset=["AFR"]),
-        hide_index=True,
-        use_container_width=True
-    )
-
-    st.markdown("### 🏁 Drag Simulation Predictions")
-    drag_summary = st.session_state.get("last_drag")
-    if drag_summary is None:
-        drag_summary = compute_drag_package(latest, in_rpm)
-        st.session_state.last_drag = drag_summary
-
-    drag_df = pd.DataFrame([{
-        "Run": latest["Run"],
-        "0-100 km/h": drag_summary["0-100 km/h"],
-        "201m": drag_summary["201m"],
-        "402m": drag_summary["402m"],
-        "1000m": drag_summary["1000m"],
-        "Top Speed": drag_summary["Top Speed"],
-    }])
-    st.dataframe(
-        drag_df.style.format({"0-100 km/h": "{:.2f}s", "201m": "{:.2f}s", "402m": "{:.2f}s", "1000m": "{:.2f}s", "Top Speed": "{:.1f} km/h"}),
-        hide_index=True,
-        use_container_width=True
-    )
-
-    if st.session_state.get("last_drag"):
-        st.markdown("### 🏁 Drag Simulator")
-        drag_left, drag_mid, drag_right = st.columns([1, 1, 2])
-        with drag_left:
-            st.markdown(build_needle_gauge("Tachometer", float(st.session_state.last_drag["samples"][-1][2]), max(float(in_rpm) + 1500.0, 1500.0), "RPM", float(in_rpm), 1500.0, max(1800.0, float(in_rpm) * 0.92)), unsafe_allow_html=True)
-        with drag_mid:
-            st.markdown(build_needle_gauge("Speedometer", float(st.session_state.last_drag["Top Speed"]), float(st.session_state.last_drag["Top Speed"]), "km/h", float(st.session_state.last_drag["Top Speed"]) * 0.82, float(st.session_state.last_drag["Top Speed"]) * 0.35, float(st.session_state.last_drag["Top Speed"]) * 0.68), unsafe_allow_html=True)
-        with drag_right:
-            drag_fig = go.Figure()
-            xs = [x[0] for x in st.session_state.last_drag["samples"]]
-            ys = [x[1] for x in st.session_state.last_drag["samples"]]
-            drag_fig.add_trace(go.Scatter(x=xs, y=ys, line=dict(width=4), showlegend=False))
-            drag_fig.update_layout(
-                template="plotly_dark",
-                height=420,
-                xaxis=dict(title="Distance (m)", showgrid=True, gridcolor="#333", range=[0, 1000]),
-                yaxis=dict(title="Speed (km/h)", showgrid=True, gridcolor="#333", range=[0, float(st.session_state.last_drag["Top Speed"]) * 1.1]),
-                paper_bgcolor="#050505",
-                plot_bgcolor="#050505",
-                margin=dict(l=20, r=20, t=20, b=20),
-                showlegend=False,
-            )
-            st.plotly_chart(drag_fig, use_container_width=True)
-
-        drag_samples = st.session_state.last_drag["samples"]
-        dist_100_idx = min(range(len(drag_samples)), key=lambda i: abs(drag_samples[i][0] - 100.0))
-        dist_201_idx = min(range(len(drag_samples)), key=lambda i: abs(drag_samples[i][0] - 201.0))
-        dist_402_idx = min(range(len(drag_samples)), key=lambda i: abs(drag_samples[i][0] - 402.0))
-        drag_detail_df = pd.DataFrame([{
-            "Run": latest["Run"],
-            "0-100 km/h": drag_summary["0-100 km/h"],
-            "201m": round(drag_samples[dist_201_idx][0] / max(drag_samples[dist_201_idx][1], 1.0) * 3.6, 2),
-            "402m": round(drag_samples[dist_402_idx][0] / max(drag_samples[dist_402_idx][1], 1.0) * 3.6, 2),
-            "1000m": drag_summary["1000m"],
-            "Top Speed": drag_summary["Top Speed"],
-        }])
-        st.dataframe(
-            drag_detail_df.style.format({"0-100 km/h": "{:.2f}s", "201m": "{:.2f}s", "402m": "{:.2f}s", "1000m": "{:.2f}s", "Top Speed": "{:.1f} km/h"}),
-            hide_index=True,
-            use_container_width=True
-        )
-
-    render_expert_analysis(latest)
+    if st.session_state.get("show_drag") and st.session_state.get("last_drag"):
+        st.markdown("---")
+        render_drag_dashboard(latest, st.session_state.last_drag, in_rpm)
 
 st.write("---")
 st.error("⚠️ **DISCLAIMER:** Perhitungan hanya estimasi kalkulasi data, hasil nyata bergantung pada efisiensi volumetrik, suhu, kualitas part, dan setting lapangan.")
