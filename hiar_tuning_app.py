@@ -11,7 +11,7 @@ from plotly.subplots import make_subplots
 # 1. PAGE CONFIG & PROFESSIONAL DYNO CSS
 # ==========================================
 st.set_page_config(
-    page_title="HIAR AXIS VIRTUAL DYNO v6",
+    page_title="HIAR AXIS VIRTUAL DYNO v6.1",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -106,12 +106,13 @@ if 'history' not in st.session_state:
     st.session_state.history = []
 
 # ==========================================
-# 3. THERMODYNAMIC ENGINE (SMOOTH PARABOLIC)
+# 3. THERMODYNAMIC ENGINE (STRICT PYTHON TYPES)
 # ==========================================
 def calculate_smooth_dyno_curve(std_spec, in_bore, in_stroke, in_venturi, in_afr, limit_rpm):
-    rpms = np.arange(1000, int(limit_rpm) + 100, 100)
+    raw_rpms = np.arange(1000, int(limit_rpm) + 100, 100)
+    rpms = [int(r) for r in raw_rpms]
     
-    cc_calc = (0.785398 * float(in_bore)**2 * float(in_stroke)) / 1000.0
+    cc_calc = float((0.785398 * float(in_bore)**2 * float(in_stroke)) / 1000.0)
     cvt_loss = float(std_spec.get('cvt_loss', 0.18))
     
     crank_tq_peak = float(std_spec['torque_crank_std'])
@@ -134,16 +135,20 @@ def calculate_smooth_dyno_curve(std_spec, in_bore, in_stroke, in_venturi, in_afr
         hp = (tq * r) / 7023.5 if r > 0 else 0.0
         afr_val = float(in_afr) + 0.2 * math.sin(r / 800.0)
         
-        torques.append(round(max(0, tq), 2))
-        wheel_hps.append(round(max(0, hp), 2))
-        afrs.append(round(afr_val, 2))
+        torques.append(float(round(max(0.0, tq), 2)))
+        wheel_hps.append(float(round(max(0.0, hp), 2)))
+        afrs.append(float(round(afr_val, 2)))
         
-    max_hp = max(wheel_hps)
-    max_tq = max(torques)
-    rpm_hp = int(rpms[np.argmax(wheel_hps)])
-    rpm_tq = int(rpms[np.argmax(torques)])
+    max_hp = float(max(wheel_hps))
+    max_tq = float(max(torques))
     
-    return list(rpms), wheel_hps, torques, afrs, max_hp, rpm_hp, max_tq, rpm_tq, cc_calc
+    idx_hp = int(np.argmax(wheel_hps))
+    idx_tq = int(np.argmax(torques))
+    
+    rpm_hp = int(rpms[idx_hp])
+    rpm_tq = int(rpms[idx_tq])
+    
+    return rpms, wheel_hps, torques, afrs, max_hp, rpm_hp, max_tq, rpm_tq, cc_calc
 
 # ==========================================
 # 4. SIDEBAR CONTROLS
@@ -192,15 +197,27 @@ with st.sidebar:
     run_btn = st.button("🚀 PROCESS & LOAD DYNO DATA")
 
 # ==========================================
-# 5. FULLY SINKRON DYNO STUDIO COMPONENT (v6.0)
+# 5. FULLY SINKRON DYNO STUDIO COMPONENT (v6.1 FIXED)
 # ==========================================
 def render_full_dyno_studio_v6(rpms, hps, tqs, afrs, max_hp, rpm_hp, max_tq, rpm_tq, top_speed, limit_rpm, engine_type, run_label):
     
-    # Safe JSON Serialization
-    rpms_json = json.dumps(rpms)
-    hps_json = json.dumps(hps)
-    tqs_json = json.dumps(tqs)
-    afrs_json = json.dumps(afrs)
+    # Explicit Type-Casting for JSON Safety
+    rpms_clean = [int(x) for x in rpms]
+    hps_clean = [float(x) for x in hps]
+    tqs_clean = [float(x) for x in tqs]
+    afrs_clean = [float(x) for x in afrs]
+    
+    rpms_json = json.dumps(rpms_clean)
+    hps_json = json.dumps(hps_clean)
+    tqs_json = json.dumps(tqs_clean)
+    afrs_json = json.dumps(afrs_clean)
+    
+    max_hp_f = float(max_hp)
+    max_tq_f = float(max_tq)
+    rpm_hp_i = int(rpm_hp)
+    rpm_tq_i = int(rpm_tq)
+    limit_rpm_i = int(limit_rpm)
+    top_speed_f = float(top_speed)
     
     component_code = f"""
     <!DOCTYPE html>
@@ -252,13 +269,13 @@ def render_full_dyno_studio_v6(rpms, hps, tqs, afrs, max_hp, rpm_hp, max_tq, rpm
         const tqs = {tqs_json};
         const afrs = {afrs_json};
         
-        const maxHp = {max_hp};
-        const rpmHp = {rpm_hp};
-        const maxTq = {max_tq};
-        const rpmTq = {rpm_tq};
+        const maxHp = {max_hp_f};
+        const rpmHp = {rpm_hp_i};
+        const maxTq = {max_tq_f};
+        const rpmTq = {rpm_tq_i};
         
-        const limitRpm = {limit_rpm};
-        const topSpeed = {top_speed};
+        const limitRpm = {limit_rpm_i};
+        const topSpeed = {top_speed_f};
         const engineType = "{engine_type}";
 
         // DRAW ANALOG GAUGE
@@ -404,7 +421,7 @@ def render_full_dyno_studio_v6(rpms, hps, tqs, afrs, max_hp, rpm_hp, max_tq, rpm
             }}
         }}
 
-        // INITIAL INSTANT STATIC DRAW (NO BLANK SCREEN)
+        // INITIAL INSTANT STATIC DRAW
         window.onload = function() {{
             drawGauge('tachoCanvas', 1200, limitRpm, 'RPM', true);
             drawGauge('speedoCanvas', 0, topSpeed, 'KM/H', false);
@@ -501,7 +518,7 @@ def render_full_dyno_studio_v6(rpms, hps, tqs, afrs, max_hp, rpm_hp, max_tq, rpm
     components.html(component_code, height=680)
 
 # ==========================================
-# 7. MAIN EXECUTION & RENDER
+# 6. MAIN EXECUTION & RENDER
 # ==========================================
 
 st.markdown(f"""
@@ -543,7 +560,7 @@ if st.session_state.history:
         std.get('top_speed', 140.0), std['limit_std'], std.get('type', 'single_small'), latest['Run']
     )
     
-    # 2. Render Integrated Plotly Backup Graph (Corrected API Syntax)
+    # 2. Render Integrated Plotly Backup Graph
     st.markdown("### 📊 HIGH-RESOLUTION DYNO GRAPH")
     fig = make_subplots(
         rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.04, row_heights=[0.75, 0.25]
@@ -578,4 +595,4 @@ if st.session_state.history:
         "Max_Wheel_HP": "{:.2f}", "Max_Nm": "{:.2f}"
     }), use_container_width=True, hide_index=True)
 
-st.caption("HIAR AXIS VIRTUAL DYNO v6.0 — Fully Synchronized Live Canvas & Web Audio Studio System.")
+st.caption("HIAR AXIS VIRTUAL DYNO v6.1 — JSON Type-Cast Fixed & Fully Synchronized System.")
