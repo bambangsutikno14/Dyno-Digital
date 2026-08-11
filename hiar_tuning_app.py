@@ -5,13 +5,12 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import pandas as pd
 import streamlit.components.v1 as components
-import time
 
 # ==========================================
 # 1. PAGE CONFIG & PROFESSIONAL DYNO CSS
 # ==========================================
 st.set_page_config(
-    page_title="HIAR AXIS VIRTUAL DYNO SYSTEM v3",
+    page_title="HIAR AXIS VIRTUAL DYNO v4",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -60,54 +59,54 @@ DATABASE_REF = {
         "XMAX 250 (Lokal Indonesia)": {
             "bore": 70.0, "stroke": 64.9, "v_head": 26.2, "valve_in": 30.0, "valve_out": 26.0, "venturi": 34.0, 
             "hp_crank_std": 22.5, "torque_crank_std": 24.3, "peak_rpm": 7000, "limit_std": 9000, "weight_std": 179.0, 
-            "type": "single_big", "cvt_loss": 0.18
+            "type": "single_big", "cvt_loss": 0.18, "top_speed": 145.0
         },
         "XMAX 300 (Euro Spec)": {
             "bore": 70.0, "stroke": 75.9, "v_head": 29.5, "valve_in": 31.5, "valve_out": 27.0, "venturi": 36.0, 
             "hp_crank_std": 27.6, "torque_crank_std": 29.0, "peak_rpm": 7250, "limit_std": 9200, "weight_std": 183.0, 
-            "type": "single_big", "cvt_loss": 0.18
+            "type": "single_big", "cvt_loss": 0.18, "top_speed": 160.0
         },
         "XMAX 310 (Bore-Up Spec)": {
             "bore": 76.0, "stroke": 68.0, "v_head": 28.0, "valve_in": 33.0, "valve_out": 28.5, "venturi": 38.0, 
             "hp_crank_std": 32.5, "torque_crank_std": 34.0, "peak_rpm": 7500, "limit_std": 9500, "weight_std": 180.0, 
-            "type": "single_big", "cvt_loss": 0.17
+            "type": "single_big", "cvt_loss": 0.17, "top_speed": 172.0
         },
         "NMAX 155 / Aerox 155 (VVA)": {
             "bore": 58.0, "stroke": 58.7, "v_head": 14.6, "valve_in": 20.5, "valve_out": 17.5, "venturi": 28.0, 
             "hp_crank_std": 15.1, "torque_crank_std": 13.9, "peak_rpm": 8000, "limit_std": 9500, "weight_std": 127.0, 
-            "type": "single_small", "cvt_loss": 0.18
+            "type": "single_small", "cvt_loss": 0.18, "top_speed": 125.0
         },
         "Mio Karbu 115": {
             "bore": 50.0, "stroke": 57.9, "v_head": 13.7, "valve_in": 23.0, "valve_out": 19.0, "venturi": 24.0, 
             "hp_crank_std": 8.8, "torque_crank_std": 7.84, "peak_rpm": 8000, "limit_std": 9000, "weight_std": 92.0, 
-            "type": "single_small", "cvt_loss": 0.20
+            "type": "single_small", "cvt_loss": 0.20, "top_speed": 105.0
         },
         "YZF-R25 (2-Cylinder)": {
             "bore": 60.0, "stroke": 44.1, "v_head": 12.0, "valve_in": 23.0, "valve_out": 20.0, "venturi": 32.0, 
             "hp_crank_std": 35.5, "torque_crank_std": 22.6, "peak_rpm": 12000, "limit_std": 14000, "weight_std": 166.0, 
-            "type": "twin", "cvt_loss": 0.11
+            "type": "twin", "cvt_loss": 0.11, "top_speed": 180.0
         }
     },
     "HONDA": {
         "Vario 160 / PCX 160 (eSP+)": {
             "bore": 60.0, "stroke": 55.5, "v_head": 14.2, "valve_in": 27.0, "valve_out": 22.0, "venturi": 30.0, 
             "hp_crank_std": 15.6, "torque_crank_std": 15.0, "peak_rpm": 8500, "limit_std": 9800, "weight_std": 117.0, 
-            "type": "single_small", "cvt_loss": 0.18
+            "type": "single_small", "cvt_loss": 0.18, "top_speed": 128.0
         },
         "Vario 150 / PCX 150": {
             "bore": 57.3, "stroke": 57.9, "v_head": 15.6, "valve_in": 29.0, "valve_out": 23.0, "venturi": 26.0, 
             "hp_crank_std": 12.9, "torque_crank_std": 13.4, "peak_rpm": 8500, "limit_std": 9800, "weight_std": 109.0, 
-            "type": "single_small", "cvt_loss": 0.19
+            "type": "single_small", "cvt_loss": 0.19, "top_speed": 118.0
         },
         "BeAT FI / Scoopy 110": {
             "bore": 50.0, "stroke": 55.1, "v_head": 12.7, "valve_in": 22.0, "valve_out": 19.0, "venturi": 22.0, 
             "hp_crank_std": 8.56, "torque_crank_std": 9.01, "peak_rpm": 7500, "limit_std": 9200, "weight_std": 89.0, 
-            "type": "single_small", "cvt_loss": 0.20
+            "type": "single_small", "cvt_loss": 0.20, "top_speed": 102.0
         },
         "CBR250RR (2-Cylinder)": {
             "bore": 62.0, "stroke": 41.4, "v_head": 11.2, "valve_in": 24.5, "valve_out": 21.0, "venturi": 32.0, 
             "hp_crank_std": 40.4, "torque_crank_std": 25.0, "peak_rpm": 13000, "limit_std": 14500, "weight_std": 168.0, 
-            "type": "twin", "cvt_loss": 0.10
+            "type": "twin", "cvt_loss": 0.10, "top_speed": 185.0
         }
     }
 }
@@ -134,7 +133,7 @@ def calculate_dyno_curve(cc, bore, stroke, cr, rpm_limit, v_in, v_out, venturi, 
     cvt_loss = float(std_spec.get('cvt_loss', 0.18))
     
     for r in rpms:
-        if r < 1800:  # Idle Range
+        if r < 1800:
             ve = 0.15 + (r / 1800.0) * 0.25
         elif r <= adj_peak:
             ve = math.exp(-((r - adj_peak) / 4100.0)**2)
@@ -150,7 +149,6 @@ def calculate_dyno_curve(cc, bore, stroke, cr, rpm_limit, v_in, v_out, venturi, 
             
         crank_hp = (bmep_bar * float(cc) * float(r) * ve * eff * afr_mod * thermal_penalty) / 120000.0
         
-        # Scaling mods
         if float(bore) > float(std_spec['bore']): crank_hp *= (1.0 + (float(cr) - 9.5) * 0.02)
         if float(venturi) > float(std_spec['venturi']): crank_hp *= (1.0 + (float(venturi) - float(std_spec['venturi'])) * 0.01)
         
@@ -199,7 +197,6 @@ with st.sidebar:
         in_v_in, in_v_out, in_venturi = std['valve_in'], std['valve_out'], std['venturi']
         in_dur_in, in_dur_out, in_afr = 240, 240, 13.0
 
-    # Stock Check
     is_stock = (
         abs(in_bore - std['bore']) < 0.1 and
         abs(in_stroke - std['stroke']) < 0.1 and
@@ -215,74 +212,190 @@ with st.sidebar:
     user_run_label = st.text_input("Run Label (Editable)", value=default_run_name)
     in_joki = st.number_input("Rider Weight (kg)", value=65.0, step=1.0)
     
-    run_btn = st.button("🚀 START REALISTIC DYNO SWEEP")
+    run_btn = st.button("🚀 START REALISTIC DYNO SWEEP (20s)")
 
 # ==========================================
-# 5. AUDIO SYNTHESIZER MATCHING ENGINE TYPE
+# 5. DYNAMIC ANALOG GAUGES & AUDIO ENGINE (20s CYCLE)
 # ==========================================
-def play_engine_audio(engine_type):
-    # Frequencies and harmonic profiles matching Engine Types
-    freq_map = {
-        "single_small": {"base": 40, "peak": 320, "type": "sawtooth"},
-        "single_big": {"base": 30, "peak": 260, "type": "square"},
-        "twin": {"base": 50, "peak": 550, "type": "sawtooth"}
-    }
-    spec = freq_map.get(engine_type, freq_map["single_small"])
-    
-    audio_js = f"""
+def render_analog_gauges_and_audio(limit_rpm, top_speed, engine_type):
+    gauge_js = f"""
+    <div style="display:flex; justify-content:center; gap:30px; background-color:#0D0D0D; padding:15px; border-radius:8px; border:2px solid #222;">
+        <div style="text-align:center;">
+            <canvas id="tachoCanvas" width="220" height="220"></canvas>
+            <div style="color:#00FF00; font-weight:bold; font-size:0.9rem; margin-top:4px;">TACHOMETER (RPM)</div>
+        </div>
+        <div style="text-align:center;">
+            <canvas id="speedoCanvas" width="220" height="220"></canvas>
+            <div style="color:#0088FF; font-weight:bold; font-size:0.9rem; margin-top:4px;">SPEEDOMETER (KM/H)</div>
+        </div>
+    </div>
+
     <script>
-    function runDynoAudio() {{
+    const maxRpm = {limit_rpm};
+    const maxSpeed = {top_speed};
+    const engineType = "{engine_type}";
+
+    function drawGauge(canvasId, value, maxVal, title, unit, redlineStart) {{
+        const canvas = document.getElementById(canvasId);
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        const cx = 110, cy = 110, r = 85;
+        
+        ctx.clearRect(0, 0, 220, 220);
+        
+        // Background Dial
+        ctx.beginPath();
+        ctx.arc(cx, cy, r, 0.75 * Math.PI, 2.25 * Math.PI);
+        ctx.strokeStyle = '#222';
+        ctx.lineWidth = 14;
+        ctx.stroke();
+        
+        // Redline Zone
+        if (redlineStart) {{
+            const rlAngleStart = (0.75 + (redlineStart / maxVal) * 1.5) * Math.PI;
+            ctx.beginPath();
+            ctx.arc(cx, cy, r, rlAngleStart, 2.25 * Math.PI);
+            ctx.strokeStyle = '#FF2222';
+            ctx.lineWidth = 14;
+            ctx.stroke();
+        }}
+        
+        // Active Arc
+        const currentAngle = (0.75 + (Math.min(value, maxVal) / maxVal) * 1.5) * Math.PI;
+        ctx.beginPath();
+        ctx.arc(cx, cy, r, 0.75 * Math.PI, currentAngle);
+        ctx.strokeStyle = (canvasId === 'tachoCanvas') ? '#00FF00' : '#0088FF';
+        ctx.lineWidth = 8;
+        ctx.stroke();
+        
+        // Ticks & Numbers
+        ctx.fillStyle = '#AAA';
+        ctx.font = '10px Consolas';
+        ctx.textAlign = 'center';
+        for (let i = 0; i <= 10; i++) {{
+            const a = (0.75 + (i / 10) * 1.5) * Math.PI;
+            const tx = cx + Math.cos(a) * (r - 20);
+            const ty = cy + Math.sin(a) * (r - 20);
+            const num = Math.round((maxVal / 10) * i);
+            ctx.fillText(num >= 1000 ? (num/1000)+'k' : num, tx, ty + 3);
+        }}
+        
+        // Center Text
+        ctx.fillStyle = '#FFF';
+        ctx.font = 'bold 18px Consolas';
+        ctx.fillText(Math.round(value), cx, cy + 30);
+        ctx.fillStyle = '#888';
+        ctx.font = '10px Consolas';
+        ctx.fillText(unit, cx, cy + 44);
+        
+        // Needle
+        ctx.save();
+        ctx.translate(cx, cy);
+        ctx.rotate(currentAngle + 0.5 * Math.PI);
+        ctx.beginPath();
+        ctx.moveTo(-3, 0);
+        ctx.lineTo(0, -r + 12);
+        ctx.lineTo(3, 0);
+        ctx.fillStyle = '#FF0000';
+        ctx.fill();
+        ctx.restore();
+        
+        // Center Pin
+        ctx.beginPath();
+        ctx.arc(cx, cy, 6, 0, 2 * Math.PI);
+        ctx.fillStyle = '#FFF';
+        ctx.fill();
+    }}
+
+    function startDyno20sRun() {{
         const AudioContext = window.AudioContext || window.webkitAudioContext;
         if (!AudioContext) return;
-        const ctx = new AudioContext();
+        const audioCtx = new AudioContext();
         
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.type = '{spec["type"]}';
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = (engineType === 'single_big') ? 'square' : 'sawtooth';
         
-        const now = ctx.currentTime;
-        // Phase 1: Idle (0s - 1s)
-        osc.frequency.setValueAtTime({spec["base"]}, now);
+        const startTime = audioCtx.currentTime;
+        const totalDuration = 20.0;
         
-        // Phase 2: Ramp Up Sweep (1s - 4.5s)
-        osc.frequency.exponentialRampToValueAtTime({spec["peak"]}, now + 4.0);
+        // Base Sound Frequencies
+        const idleFreq = (engineType === 'twin') ? 50 : 35;
+        const limitFreq = (engineType === 'twin') ? 520 : 280;
         
-        // Phase 3: Limiter Cutout Bounce (4.0s - 4.3s)
-        osc.frequency.setValueAtTime({spec["peak"]}, now + 4.0);
-        osc.frequency.setValueAtTime({spec["peak"] * 0.85}, now + 4.15);
-        osc.frequency.setValueAtTime({spec["peak"]}, now + 4.3);
+        // Phase 1: Idle 5s (0s -> 5s)
+        osc.frequency.setValueAtTime(idleFreq, startTime);
+        osc.frequency.setValueAtTime(idleFreq, startTime + 5.0);
         
-        // Phase 4: Decel Coast Down (4.3s - 5.5s)
-        osc.frequency.exponentialRampToValueAtTime({spec["base"]}, now + 5.5);
+        // Phase 2: Gradual Sweep 10s (5s -> 15s)
+        osc.frequency.exponentialRampToValueAtTime(limitFreq, startTime + 15.0);
         
-        gain.gain.setValueAtTime(0.01, now);
-        gain.gain.linearRampToValueAtTime(0.25, now + 0.8);
-        gain.gain.linearRampToValueAtTime(0.35, now + 4.0);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + 5.6);
+        // Phase 3: Decel 5s (15s -> 20s)
+        osc.frequency.exponentialRampToValueAtTime(idleFreq, startTime + 20.0);
         
-        const filter = ctx.createBiquadFilter();
+        gain.gain.setValueAtTime(0.01, startTime);
+        gain.gain.linearRampToValueAtTime(0.25, startTime + 1.0);
+        gain.gain.setValueAtTime(0.25, startTime + 5.0);
+        gain.gain.linearRampToValueAtTime(0.40, startTime + 15.0);
+        gain.gain.exponentialRampToValueAtTime(0.01, startTime + 20.0);
+        
+        const filter = audioCtx.createBiquadFilter();
         filter.type = 'lowpass';
-        filter.frequency.setValueAtTime(300, now);
-        filter.frequency.linearRampToValueAtTime(2800, now + 4.0);
-        filter.frequency.linearRampToValueAtTime(200, now + 5.5);
+        filter.frequency.setValueAtTime(300, startTime);
+        filter.frequency.linearRampToValueAtTime(2600, startTime + 15.0);
+        filter.frequency.linearRampToValueAtTime(250, startTime + 20.0);
         
         osc.connect(filter);
         filter.connect(gain);
-        gain.connect(ctx.destination);
+        gain.connect(audioCtx.destination);
         
-        osc.start(now);
-        osc.stop(now + 5.7);
+        osc.start(startTime);
+        osc.stop(startTime + totalDuration);
+        
+        // 60 FPS Needle Animation Loop
+        const animStart = performance.now();
+        function animate() {{
+            const elapsed = (performance.now() - animStart) / 1000.0;
+            let currentRpm = 1200;
+            let currentSpeed = 0;
+            
+            if (elapsed <= 5.0) {{
+                // 0 - 5s: Idle
+                currentRpm = 1200 + Math.sin(elapsed * 5) * 40;
+                currentSpeed = 0;
+            }} else if (elapsed <= 15.0) {{
+                // 5 - 15s: 10s Sweep Up
+                const progress = (elapsed - 5.0) / 10.0;
+                currentRpm = 1200 + progress * (maxRpm - 1200);
+                currentSpeed = progress * maxSpeed;
+            }} else if (elapsed <= 20.0) {{
+                // 15 - 20s: 5s Decel
+                const decelProgress = (elapsed - 15.0) / 5.0;
+                currentRpm = maxRpm - decelProgress * (maxRpm - 1200);
+                currentSpeed = maxSpeed * (1.0 - decelProgress);
+            }} else {{
+                currentRpm = 1200;
+                currentSpeed = 0;
+            }}
+            
+            drawGauge('tachoCanvas', currentRpm, maxRpm, 'TACHOMETER', 'RPM', maxRpm * 0.85);
+            drawGauge('speedoCanvas', currentSpeed, maxSpeed, 'SPEEDOMETER', 'KM/H', null);
+            
+            if (elapsed < totalDuration) {{
+                requestAnimationFrame(animate);
+            }}
+        }}
+        requestAnimationFrame(animate);
     }}
-    runDynoAudio();
+    startDyno20sRun();
     </script>
     """
-    components.html(audio_js, height=0, width=0)
+    components.html(gauge_js, height=270)
 
 # ==========================================
-# 6. MAIN UI & ANIMATED SWEEP DISPLAY
+# 6. MAIN UI & CORRECTED PLOTLY LAYOUT
 # ==========================================
 
-# Top Header
 st.markdown(f"""
 <div class="dyno-header">
     <div>
@@ -295,7 +408,7 @@ st.markdown(f"""
 """, unsafe_allow_html=True)
 
 if run_btn:
-    play_engine_audio(std.get('type', 'single_small'))
+    render_analog_gauges_and_audio(std['limit_std'], std.get('top_speed', 140.0), std.get('type', 'single_small'))
     cr_calc = (cc_calc + float(in_vhead)) / float(in_vhead)
     
     rpms, wheel_hps, crank_hps, torques, afr_trace, pspeed, gsin, gsout = calculate_dyno_curve(
@@ -359,6 +472,7 @@ if st.session_state.history:
                 line=dict(color=hp_c, width=2)
             ), row=2, col=1)
 
+        # CORRECTED PLOTLY LAYOUT STRUCTURE (NO "titlefont" ERROR)
         fig.update_layout(
             template="plotly_dark",
             height=530,
@@ -366,16 +480,27 @@ if st.session_state.history:
             plot_bgcolor="#050505",
             margin=dict(l=40, r=40, t=20, b=20),
             showlegend=False,
-            yaxis=dict(title="Wheel POWER [HP]", titlefont=dict(color="#FFFF00"), gridcolor="#222"),
-            yaxis2=dict(title="Engine Torque [Nm]", titlefont=dict(color="#0088FF"), overlaying="y", side="right", showgrid=False),
-            yaxis3=dict(title="AFR", titlefont=dict(color="#00FF00"), gridcolor="#222", range=[10, 18]),
-            xaxis2=dict(title="Engine Speed [RPM]", gridcolor="#222", dtick=1000)
+            yaxis=dict(
+                title=dict(text="Wheel POWER [HP]", font=dict(color="#FFFF00")),
+                gridcolor="#222222"
+            ),
+            yaxis2=dict(
+                title=dict(text="Engine Torque [Nm]", font=dict(color="#0088FF")),
+                overlaying="y", side="right", showgrid=False
+            ),
+            yaxis3=dict(
+                title=dict(text="AFR", font=dict(color="#00FF00")),
+                gridcolor="#222222", range=[10, 18]
+            ),
+            xaxis2=dict(
+                title=dict(text="Engine Speed [RPM]"),
+                gridcolor="#222222", dtick=1000
+            )
         )
         
         st.plotly_chart(fig, use_container_width=True)
 
     with col_metrics:
-        # Status Badge
         badge_html = '<span class="stock-badge">STOCK SPEC</span>' if latest['Is_Stock'] else '<span class="tuned-badge">TUNED SPEC</span>'
         
         st.markdown(f"""
@@ -427,4 +552,4 @@ if st.session_state.history:
         "Max_Wheel_HP": "{:.2f}", "Max_Nm": "{:.2f}"
     }), use_container_width=True, hide_index=True)
 
-st.caption("HIAR AXIS VIRTUAL DYNO v3.0 — Precision Automotive Engine Simulation System.")
+st.caption("HIAR AXIS VIRTUAL DYNO v4.0 — Fixed & Enhanced Real-Time Animation System.")
