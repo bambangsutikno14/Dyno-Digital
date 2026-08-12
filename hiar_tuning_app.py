@@ -9,7 +9,7 @@ import streamlit.components.v1 as components
 # 1. PAGE CONFIG & PROFESSIONAL DYNO CSS
 # ==========================================
 st.set_page_config(
-    page_title="PENDAWA AXIS VIRTUAL DYNO v11",
+    page_title="PENDAWA AXIS VIRTUAL DYNO v12",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -142,9 +142,9 @@ if 'run_trigger' not in st.session_state:
     st.session_state.run_trigger = False
 
 # ==========================================
-# 3. ACCURATE THERMODYNAMIC ENGINE (FIXED UNITS)
+# 3. ACCURATE THERMODYNAMIC ENGINE (USER LIMIT RPM)
 # ==========================================
-def calculate_smooth_dyno_curve(std_spec, in_bore, in_stroke, in_vhead, in_v_in, in_v_out, in_venturi, in_dur_in, in_dur_out, in_afr, limit_rpm):
+def calculate_smooth_dyno_curve(std_spec, in_bore, in_stroke, in_vhead, in_v_in, in_v_out, in_venturi, in_dur_in, in_dur_out, in_afr, user_limit_rpm):
     cc_calc = float((0.785398 * float(in_bore)**2 * float(in_stroke)) / 1000.0)
     cr_calc = float((cc_calc + float(in_vhead)) / float(in_vhead))
     
@@ -157,17 +157,16 @@ def calculate_smooth_dyno_curve(std_spec, in_bore, in_stroke, in_vhead, in_v_in,
     crank_tq_base = float(std_spec['torque_crank_std']) * cc_ratio
     wheel_tq_base = crank_tq_base * (1.0 - cvt_loss)
     
-    # Compression Ratio Thermal Adjustment
+    # Compression Ratio Thermal Factor
     cr_std = (std_cc + std_spec['v_head']) / std_spec['v_head']
     cr_diff = cr_calc - cr_std
     
     if cr_calc > 14.5:
-        # Severe Knocking Penalty
         thermal_factor = (1.0 + cr_diff * 0.015) - ((cr_calc - 14.5) * 0.15)
     else:
         thermal_factor = 1.0 + cr_diff * 0.015
         
-    # Dynamic Powerband Peak RPM Shift
+    # Dynamic Peak RPM Calculations
     valve_area_ratio = (in_v_in / in_bore)**2
     rpm_tq_dynamic = (82.0 * 60000.0) / (2.0 * in_stroke / valve_area_ratio)
     
@@ -177,9 +176,11 @@ def calculate_smooth_dyno_curve(std_spec, in_bore, in_stroke, in_vhead, in_v_in,
     tb_ratio = in_venturi / in_v_in
     tb_shift = - (0.85 - tb_ratio) * 3500.0 if tb_ratio < 0.85 else 0.0
     
-    final_rpm_tq_peak = float(np.clip(rpm_tq_dynamic + cam_shift_rpm + tb_shift, 3500.0, limit_rpm - 2000.0))
+    final_rpm_tq_peak = float(np.clip(rpm_tq_dynamic + cam_shift_rpm + tb_shift, 3500.0, user_limit_rpm - 2000.0))
+    final_rpm_hp_peak = float(np.clip(final_rpm_tq_peak + 1800.0 + (cam_dur_avg - 240.0) * 18.0, final_rpm_tq_peak + 1200.0, user_limit_rpm - 800.0))
     
-    raw_rpms = np.arange(1000, int(limit_rpm) + 100, 100)
+    # Generate RPMS up to user_limit_rpm
+    raw_rpms = np.arange(1000, int(user_limit_rpm) + 100, 100)
     rpms = [int(r) for r in raw_rpms]
     
     wheel_hps, torques, afrs = [], [], []
@@ -188,7 +189,7 @@ def calculate_smooth_dyno_curve(std_spec, in_bore, in_stroke, in_vhead, in_v_in,
         pspeed_r = (2.0 * in_stroke * r) / 60000.0
         gsin_r = ((in_bore / in_v_in)**2) * pspeed_r
         
-        # Volumetric Efficiency Shape Curve
+        # Volumetric Efficiency Shape
         if r < 1500:
             ve_shape = 0.25 * (r / 1500.0)
         elif r <= final_rpm_tq_peak:
@@ -196,7 +197,12 @@ def calculate_smooth_dyno_curve(std_spec, in_bore, in_stroke, in_vhead, in_v_in,
         else:
             ve_shape = 0.45 + 0.55 * math.exp(-((r - final_rpm_tq_peak) / 2200.0)**2)
             
-        # CHOKE FLOW PENALTY (Spek Ngaco / Klep kekecilan)
+        # High-RPM Breathing Roll-Off (Ensures HP drops after peak)
+        if r > final_rpm_hp_peak:
+            high_rpm_decay = math.exp(-((r - final_rpm_hp_peak) / 1800.0)**1.8)
+            ve_shape *= high_rpm_decay
+            
+        # Choke Flow Penalty
         choke_factor = 1.0
         if gsin_r > 125.0:
             choke_factor = (125.0 / gsin_r)**2.2
@@ -206,6 +212,11 @@ def calculate_smooth_dyno_curve(std_spec, in_bore, in_stroke, in_vhead, in_v_in,
         afr_mod = 1.0 - abs(float(in_afr) - 13.0) * 0.035
         
         wheel_tq = wheel_tq_base * ve_shape * choke_factor * thermal_factor * afr_mod
+        
+        # Rev Limiter Cutout Drop
+        if r > user_limit_rpm - 300:
+            wheel_tq *= (1.0 - ((r - (user_limit_rpm - 300)) / 300.0)**2)
+            
         hp = (wheel_tq * r) / 7023.5 if r > 0 else 0.0
         afr_val = float(in_afr) + 0.2 * math.sin(r / 800.0)
         
@@ -300,9 +311,9 @@ with st.sidebar:
         st.rerun()
 
 # ==========================================
-# 5. STUDIO CANVAS COMPONENT WITH GAUGES NOTES (v11.0)
+# 5. STUDIO CANVAS COMPONENT (v12.0)
 # ==========================================
-def render_full_dyno_studio_v11(history_list, auto_start, current_run_model_name, top_speed, limit_rpm, engine_type):
+def render_full_dyno_studio_v12(history_list, auto_start, current_run_model_name, top_speed, user_limit_rpm, engine_type):
     
     history_payload = []
     for h in history_list:
@@ -321,7 +332,7 @@ def render_full_dyno_studio_v11(history_list, auto_start, current_run_model_name
     history_json = json.dumps(history_payload)
     auto_start_js = "true" if auto_start else "false"
     
-    limit_rpm_i = int(limit_rpm)
+    limit_rpm_i = int(user_limit_rpm)
     top_speed_f = float(top_speed)
     
     component_code = f"""
@@ -578,8 +589,8 @@ def render_full_dyno_studio_v11(history_list, auto_start, current_run_model_name
             
             if (historyRuns.length > 0) {{
                 let lastRun = historyRuns[historyRuns.length - 1];
-                document.getElementById('tachoNote').innerText = "MAX RPM: " + lastRun.rpms[lastRun.rpms.length - 1] + " RPM";
-                document.getElementById('speedoNote').innerText = "MAX SPEED: " + topSpeed + " KM/H";
+                document.getElementById('tachoNote').innerText = "MAX RPM: -- RPM";
+                document.getElementById('speedoNote').innerText = "MAX SPEED: -- KM/H";
             }}
             
             if (autoStart && historyRuns.length > 0) {{
@@ -590,6 +601,9 @@ def render_full_dyno_studio_v11(history_list, auto_start, current_run_model_name
         function startDyno20sCycle() {{
             document.getElementById('dynoStatus').innerText = "RUNNING SWEEP (20s)...";
             document.getElementById('dynoStatus').style.color = "#FFFF00";
+            
+            document.getElementById('tachoNote').innerText = "MAX RPM: -- RPM";
+            document.getElementById('speedoNote').innerText = "MAX SPEED: -- KM/H";
             
             const AudioContext = window.AudioContext || window.webkitAudioContext;
             if (!AudioContext) return;
@@ -655,6 +669,7 @@ def render_full_dyno_studio_v11(history_list, auto_start, current_run_model_name
                     document.getElementById('dynoStatus').innerText = "COMPLETED";
                     document.getElementById('dynoStatus').style.color = "#00FF66";
                     
+                    // SHOW MAX READOUT NOTES ONLY AFTER RUN FINISHES
                     document.getElementById('tachoNote').innerText = "MAX RPM: " + limitRpm + " RPM";
                     document.getElementById('speedoNote').innerText = "MAX SPEED: " + topSpeed + " KM/H";
                 }}
@@ -698,7 +713,7 @@ auto_start_run = False
 
 if st.session_state.run_trigger:
     rpms, hps, tqs, afrs, max_hp, rpm_hp, max_tq, rpm_tq, cc_calc, cr_calc, pspeed, gsin, gsout = calculate_smooth_dyno_curve(
-        std, in_bore, in_stroke, in_vhead, in_v_in, in_v_out, in_venturi, in_dur_in, in_dur_out, in_afr, std['limit_std']
+        std, in_bore, in_stroke, in_vhead, in_v_in, in_v_out, in_venturi, in_dur_in, in_dur_out, in_afr, in_rpm
     )
     
     st.session_state.history.append({
@@ -727,16 +742,15 @@ if st.session_state.run_trigger:
 
 latest_run = st.session_state.history[-1] if st.session_state.history else None
 
-render_full_dyno_studio_v11(
+render_full_dyno_studio_v12(
     st.session_state.history,
     auto_start_run,
     selected_model,
     std.get('top_speed', 140.0),
-    std['limit_std'],
+    in_rpm,  # FIXED: Passing user_limit_rpm (in_rpm) directly!
     std.get('type', 'single_small')
 )
 
-# SHOW TABLES & ANALYSIS ONLY WHEN RUN HAS BEEN EXECUTED
 if st.session_state.history:
     latest = st.session_state.history[-1]
     
@@ -811,4 +825,4 @@ if st.session_state.history:
         for p in parts:
             st.write(p)
 
-st.caption("PENDAWA AXIS VIRTUAL DYNO v11.0 — Corrected Mechanics & Accurate Powerband System.")
+st.caption("PENDAWA AXIS VIRTUAL DYNO v12.0 — Fixed User Limit RPM & Accurate High-RPM Roll-Off System.")
