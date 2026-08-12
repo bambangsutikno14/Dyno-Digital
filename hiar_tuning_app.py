@@ -9,7 +9,7 @@ import streamlit.components.v1 as components
 # 1. PAGE CONFIG & PROFESSIONAL DYNO CSS
 # ==========================================
 st.set_page_config(
-    page_title="PENDAWA AXIS VIRTUAL DYNO v15",
+    page_title="PENDAWA AXIS VIRTUAL DYNO v16",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -312,9 +312,9 @@ with st.sidebar:
         st.rerun()
 
 # ==========================================
-# 5. STUDIO CANVAS COMPONENT WITH FIXED JS TYPES (v15.0)
+# 5. STUDIO CANVAS COMPONENT (v16.0)
 # ==========================================
-def render_full_dyno_studio_v15(history_list, auto_start, current_run_model_name, calc_top_speed, user_limit_rpm, engine_type):
+def render_full_dyno_studio_v16(history_list, auto_start, current_run_model_name, calc_top_speed, user_limit_rpm, engine_type):
     
     history_payload = []
     for h in history_list:
@@ -327,16 +327,7 @@ def render_full_dyno_studio_v15(history_list, auto_start, current_run_model_name
             "max_hp": float(h["Max_Wheel_HP"]),
             "rpm_hp": int(h["RPM_HP"]),
             "max_tq": float(h["Max_Nm"]),
-            "rpm_tq": int(h["RPM_Nm"]),
-            "cc": float(h["CC"]),
-            "cr": float(h["CR"]),
-            "afr": float(h["AFR"]),
-            "pspeed": float(h["pspeed"]),
-            "gsin": float(h["gsin"]),
-            "bore": float(h["bore"]),
-            "v_in": float(h["v_in"]),
-            "v_out": float(h["v_out"]),
-            "venturi": float(h["venturi"])
+            "rpm_tq": int(h["RPM_Nm"])
         })
         
     history_json = json.dumps(history_payload)
@@ -354,18 +345,6 @@ def render_full_dyno_studio_v15(history_list, auto_start, current_run_model_name
             .studio-card {{ border: 2px solid #222; border-radius: 8px; padding: 12px; background-color: #0D0D0D; }}
             .top-bar {{ display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }}
             .gauges-row {{ display: flex; justify-content: center; gap: 30px; background-color: #111; padding: 10px; border-radius: 6px; border: 1px solid #333; margin-bottom: 12px; }}
-            
-            .dyno-table {{ width: 100%; border-collapse: collapse; background-color: #111; font-size: 0.85rem; border: 1px solid #333; text-align: center; margin-top: 10px; }}
-            .dyno-table th {{ background-color: #1A1A1A; color: #00FF66; padding: 8px; border: 1px solid #2A2A2A; }}
-            .dyno-table td {{ padding: 8px; border: 1px solid #2A2A2A; color: #FFF; }}
-            
-            .analysis-row {{ display: flex; gap: 15px; margin-top: 15px; flex-wrap: wrap; }}
-            .analysis-card {{ flex: 1; min-width: 250px; background-color: #111; padding: 12px; border-radius: 6px; border: 1px solid #333; font-size: 0.82rem; }}
-            .card-title {{ color: #00FF66; font-weight: bold; margin-bottom: 8px; font-size: 0.9rem; border-bottom: 1px solid #2A2A2A; padding-bottom: 4px; }}
-            .card-text {{ margin-bottom: 6px; color: #DDD; line-height: 1.4; }}
-            .badge-warn {{ color: #FF9900; font-weight: bold; }}
-            .badge-ok {{ color: #00FF66; font-weight: bold; }}
-            .badge-err {{ color: #FF3333; font-weight: bold; }}
         </style>
     </head>
     <body>
@@ -391,29 +370,6 @@ def render_full_dyno_studio_v15(history_list, auto_start, current_run_model_name
             <!-- DYNAMIC GRAPH CANVAS -->
             <div style="position:relative; width:100%;">
                 <canvas id="graphCanvas" width="850" height="420" style="width:100%; background-color:#050505; border:1px solid #333; border-radius:4px;"></canvas>
-            </div>
-
-            <!-- INTEGRATED SUMMARY TABLE -->
-            <div style="margin-top:20px;">
-                <h3 style="color:#00FF66; font-size:1.0rem; margin-bottom:6px;">📋 PERFORMANCE RUN SUMMARY TABLE</h3>
-                <table class="dyno-table">
-                    <thead>
-                        <tr>
-                            <th>Run</th><th>CC</th><th>CR</th><th>AFR</th><th>Max_Wheel_HP</th><th>RPM_HP</th><th>Max_Nm</th><th>RPM_Nm</th>
-                        </tr>
-                    </thead>
-                    <tbody id="tableBody"></tbody>
-                </table>
-            </div>
-
-            <!-- INTEGRATED EXPERT ENGINE ANALYSIS -->
-            <div style="margin-top:20px;">
-                <h3 style="color:#00FF66; font-size:1.0rem; margin-bottom:8px;">🏁 EXPERT ENGINE ANALYSIS (A. GRAHAM BELL PRINCIPLES)</h3>
-                <div class="analysis-row">
-                    <div class="analysis-card" id="analysisCol1"></div>
-                    <div class="analysis-card" id="analysisCol2"></div>
-                    <div class="analysis-card" id="analysisCol3"></div>
-                </div>
             </div>
         </div>
 
@@ -625,88 +581,6 @@ def render_full_dyno_studio_v15(history_list, auto_start, current_run_model_name
             }});
         }}
 
-        // RENDER TABLE & EXPERT ANALYSIS (FIXED NUMERIC CALCULATIONS)
-        function renderTableAndAnalysis(isFinished) {{
-            const tbody = document.getElementById('tableBody');
-            const col1 = document.getElementById('analysisCol1');
-            const col2 = document.getElementById('analysisCol2');
-            const col3 = document.getElementById('analysisCol3');
-            
-            if (!tbody || !col1 || !col2 || !col3) return;
-            
-            let htmlTable = "";
-            
-            historyRuns.forEach((run, idx) => {{
-                let isLatestActive = (idx === historyRuns.length - 1) && (!isFinished);
-                
-                let hpStr = isLatestActive ? "--" : run.max_hp.toFixed(2);
-                let rpmHpStr = isLatestActive ? "--" : run.rpm_hp;
-                let tqStr = isLatestActive ? "--" : run.max_tq.toFixed(2);
-                let rpmTqStr = isLatestActive ? "--" : run.rpm_tq;
-                
-                htmlTable += "<tr>" +
-                    "<td><b>" + run.Run + "</b></td>" +
-                    "<td>" + run.cc.toFixed(2) + "</td>" +
-                    "<td>" + run.cr.toFixed(2) + "</td>" +
-                    "<td>" + run.afr.toFixed(2) + "</td>" +
-                    "<td style='color:#FFFF00; font-weight:bold;'>" + hpStr + "</td>" +
-                    "<td>" + rpmHpStr + "</td>" +
-                    "<td style='color:#0088FF; font-weight:bold;'>" + tqStr + "</td>" +
-                    "<td>" + rpmTqStr + "</td>" +
-                "</tr>";
-            }});
-            
-            tbody.innerHTML = htmlTable;
-            
-            if (historyRuns.length > 0) {{
-                const latest = historyRuns[historyRuns.length - 1];
-                let isLatestActive = !isFinished;
-                
-                if (isLatestActive) {{
-                    col1.innerHTML = '<div class="card-title">1️⃣ Analisa Performa Mesin</div><div class="card-text">Status: <span class="badge-warn">Pengujian sedang berlangsung (20s)...</span></div>';
-                    col2.innerHTML = '<div class="card-title">2️⃣ Rekomendasi Spesifikasi</div><div class="card-text">Status: <span class="badge-warn">Pengujian sedang berlangsung (20s)...</span></div>';
-                    col3.innerHTML = '<div class="card-title">3️⃣ Panduan Part</div><div class="card-text">Status: <span class="badge-warn">Pengujian sedang berlangsung (20s)...</span></div>';
-                }} else {{
-                    let ps = latest.pspeed, gs = latest.gsin, cr = latest.cr;
-                    let psText = (ps > 21.0) ? '<span class="badge-err">⚠️ Piston Speed: ' + ps.toFixed(2) + ' m/s (Risiko Patah >21 m/s)</span>' : '<span class="badge-ok">✅ Piston Speed: ' + ps.toFixed(2) + ' m/s (Aman <21 m/s)</span>';
-                    let gsText = (gs > 115.0) ? '<span class="badge-err">⚠️ Gas Velocity: ' + gs.toFixed(2) + ' m/s (Choke Flow)</span>' : '<span class="badge-ok">✅ Gas Velocity: ' + gs.toFixed(2) + ' m/s (Optimum 90-110 m/s)</span>';
-                    let crText = (cr > 12.5) ? '<span class="badge-warn">⚠️ Kompresi: ' + cr.toFixed(2) + ':1 (Wajib RON 98+)</span>' : '<span class="badge-ok">ℹ️ Kompresi: ' + cr.toFixed(2) + ':1 (Aman Harian)</span>';
-                    
-                    col1.innerHTML = '<div class="card-title">1️⃣ Analisa Performa Mesin</div>' +
-                        '<div class="card-text">' + psText + '</div>' +
-                        '<div class="card-text">' + gsText + '</div>' +
-                        '<div class="card-text">' + crText + '</div>';
-                        
-                    let recVinNum = latest.bore * 0.52;
-                    let recVoutNum = recVinNum * 0.83;
-                    let recTbNum = recVinNum * 0.88;
-                    let recHeaderNum = Math.sqrt(latest.cc * 0.14) * 10.0;
-                    let recVheadNum = latest.cc / 11.5;
-                    
-                    let recVin = recVinNum.toFixed(1);
-                    let recVout = recVoutNum.toFixed(1);
-                    let recTb = recTbNum.toFixed(1);
-                    let recHeader = recHeaderNum.toFixed(1);
-                    let recVhead = recVheadNum.toFixed(2);
-                    
-                    col2.innerHTML = '<div class="card-title">2️⃣ Rekomendasi Spesifikasi Ideal</div>' +
-                        '<div class="card-text">• Klep In Ideal: <b>' + recVin + ' mm</b></div>' +
-                        '<div class="card-text">• Klep Out Ideal: <b>' + recVout + ' mm</b></div>' +
-                        '<div class="card-text">• Throttle Body: <b>' + recTb + ' mm</b></div>' +
-                        '<div class="card-text">• Leher Knalpot: <b>' + recHeader + ' mm</b></div>' +
-                        '<div class="card-text">• Dome Head (CR 12.5): <b>' + recVhead + ' cc</b></div>';
-                        
-                    let partsHtml = '<div class="card-title">3️⃣ Panduan Part & Modifikasi</div>';
-                    if (gs > 115.0) partsHtml += '<div class="card-text">• <b>Ganti Klep In:</b> Perbesar ke ' + recVin + ' mm</div>';
-                    if (latest.venturi < recTbNum - 2.0) partsHtml += '<div class="card-text">• <b>Upgrade TB:</b> Reamer ke ' + recTb + ' mm</div>';
-                    partsHtml += '<div class="card-text">• <b>Knalpot:</b> Custom header ID ' + recHeader + ' mm</div>';
-                    partsHtml += '<div class="card-text">• <b>ECU/Jetting:</b> Remap BBM sesuai AFR 13.0</div>';
-                    
-                    col3.innerHTML = partsHtml;
-                }}
-            }}
-        }}
-
         window.onload = function() {{
             drawTachometer(0);
             drawSpeedometer(0);
@@ -716,10 +590,7 @@ def render_full_dyno_studio_v15(history_list, auto_start, current_run_model_name
             document.getElementById('speedoNote').innerText = "MAX SPEED: -- KM/H";
             
             if (autoStart && historyRuns.length > 0) {{
-                renderTableAndAnalysis(false); // Show placeholder -- during 20s sweep
                 startDyno20sCycle();
-            }} else {{
-                renderTableAndAnalysis(true); // Show completed history
             }}
         }};
 
@@ -729,8 +600,6 @@ def render_full_dyno_studio_v15(history_list, auto_start, current_run_model_name
             
             document.getElementById('tachoNote').innerText = "MAX RPM: -- RPM";
             document.getElementById('speedoNote').innerText = "MAX SPEED: -- KM/H";
-            
-            renderTableAndAnalysis(false);
             
             const AudioContext = window.AudioContext || window.webkitAudioContext;
             if (!AudioContext) return;
@@ -798,9 +667,6 @@ def render_full_dyno_studio_v15(history_list, auto_start, current_run_model_name
                     
                     document.getElementById('tachoNote').innerText = "MAX RPM: " + limitRpm + " RPM";
                     document.getElementById('speedoNote').innerText = "MAX SPEED: " + topSpeed.toFixed(1) + " KM/H";
-                    
-                    // REVEAL ACTUAL NUMBERS AT DETIK KE-20
-                    renderTableAndAnalysis(true);
                 }}
                 
                 drawTachometer(currentRpm);
@@ -821,10 +687,10 @@ def render_full_dyno_studio_v15(history_list, auto_start, current_run_model_name
     </body>
     </html>
     """
-    components.html(component_code, height=920)
+    components.html(component_code, height=710)
 
 # ==========================================
-# 6. MAIN EXECUTION
+# 6. MAIN EXECUTION & NATIVE STREAMLIT COMPONENT DISPLAY
 # ==========================================
 
 st.markdown(f"""
@@ -875,7 +741,7 @@ latest_run = st.session_state.history[-1] if st.session_state.history else None
 if latest_run:
     calc_top_speed = latest_run.get("calc_top_speed", std.get('top_speed', 140.0))
 
-render_full_dyno_studio_v15(
+render_full_dyno_studio_v16(
     st.session_state.history,
     auto_start_run,
     selected_model,
@@ -884,4 +750,79 @@ render_full_dyno_studio_v15(
     std.get('type', 'single_small')
 )
 
-st.caption("PENDAWA AXIS VIRTUAL DYNO v15.0 — Fixed JavaScript Delayed Unlock Engine.")
+# STREAMLIT NATIVE SUMMARY TABLE & EXPERT ANALYSIS (ALWAYS STABLE BELOW)
+if st.session_state.history:
+    latest = st.session_state.history[-1]
+    
+    # Performance Summary Table
+    st.divider()
+    st.markdown("### 📋 PERFORMANCE RUN SUMMARY TABLE")
+    df_h = pd.DataFrame(st.session_state.history)
+    df_show = df_h[["Run", "CC", "CR", "AFR", "Max_Wheel_HP", "RPM_HP", "Max_Nm", "RPM_Nm"]].copy()
+    
+    st.dataframe(df_show.style.format({
+        "CC": "{:.2f}", "CR": "{:.2f}", "AFR": "{:.2f}",
+        "Max_Wheel_HP": "{:.2f}", "Max_Nm": "{:.2f}"
+    }), use_container_width=True, hide_index=True)
+
+    # EXPERT ENGINE ANALYSIS & GRAHAM BELL RECOMMENDATIONS
+    st.divider()
+    st.markdown("## 🏁 EXPERT ENGINE ANALYSIS (A. GRAHAM BELL PRINCIPLES)")
+    
+    col_a1, col_a2, col_a3 = st.columns(3)
+    
+    with col_a1:
+        st.markdown("#### 1️⃣ Analisa Performa Mesin")
+        ps = latest['pspeed']
+        gs = latest['gsin']
+        cr = latest['CR']
+        
+        if ps > 21.0:
+            st.error(f"⚠️ **Piston Speed:** {ps:.2f} m/s (Melebihi batas aman material 21 m/s - Risiko patah stang seher tinggi).")
+        else:
+            st.success(f"✅ **Piston Speed:** {ps:.2f} m/s (Aman untuk kompetisi/harian, < 21 m/s).")
+            
+        if gs > 115.0:
+            st.error(f"⚠️ **Gas Velocity In:** {gs:.2f} m/s (Terjadi *Choke Flow*. Klep In terlalu kecil untuk RPM puncak).")
+        elif gs < 85.0:
+            st.warning(f"⚠️ **Gas Velocity In:** {gs:.2f} m/s (Velocity terlalu rendah. Torsi putaran bawah akan loyo).")
+        else:
+            st.success(f"✅ **Gas Velocity In:** {gs:.2f} m/s (Rentang optimum A. Graham Bell: 90–110 m/s).")
+            
+        if cr > 12.5:
+            st.warning(f"⚠️ **Rasio Kompresi:** {cr:.2f}:1 (Wajib bahan bakar Oktan ≥ 98 / RON 98+ untuk mencegah knocking).")
+        else:
+            st.info(f"ℹ️ **Rasio Kompresi:** {cr:.2f}:1 (Aman untuk bahan bakar harian).")
+
+    with col_a2:
+        st.markdown("#### 2️⃣ Rekomendasi Spesifikasi Ideal")
+        rec_vin = round(latest['bore'] * 0.52, 1)
+        rec_vout = round(rec_vin * 0.83, 1)
+        rec_tb = round(rec_vin * 0.88, 1)
+        rec_header = round(math.sqrt(latest['CC'] * 0.14) * 10.0, 1)
+        rec_vhead_target = round(latest['CC'] / 11.5, 2)
+        
+        st.markdown(f"""
+        * **Diameter Klep In Ideal:** `{rec_vin} mm`
+        * **Diameter Klep Out Ideal:** `{rec_vout} mm`
+        * **Throttle Body / Venturi Ideal:** `{rec_tb} mm`
+        * **Diameter Leher Knalpot (Header):** `{rec_header} mm`
+        * **Vol Dome Head Target (CR 12.5:1):** `{rec_vhead_target} cc`
+        """)
+
+    with col_a3:
+        st.markdown("#### 3️⃣ Panduan Part & Modifikasi Rekomendasi")
+        parts = []
+        if latest['gsin'] > 115.0:
+            parts.append(f"• **Ganti Set Klep In:** Perbesar ke ukuran {rec_vin} mm untuk mengatasi Choke Flow.")
+        if latest['venturi'] < rec_tb - 2.0:
+            parts.append(f"• **Upgrade Throttle Body:** Reamer/Ganti ke diameter {rec_tb} mm.")
+        if latest['CR'] > 13.5:
+            parts.append("• **Adjustment Gasket / Head Dome:** Tambah paking atau bubut dome untuk menurunkan CR ke 12.5:1.")
+        parts.append(f"• **Knalpot Custom:** Sesuaikan leher knalpot dengan diameter dalam {rec_header} mm.")
+        parts.append("• **ECU Standalone / Jetting:** Reflash/Mapping ulang debit BBM sesuai AFR target 13.0:1.")
+        
+        for p in parts:
+            st.write(p)
+
+st.caption("PENDAWA AXIS VIRTUAL DYNO v16.0 — Restored Native Streamlit Summary & Analysis System.")
