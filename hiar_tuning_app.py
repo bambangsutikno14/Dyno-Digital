@@ -9,7 +9,7 @@ import streamlit.components.v1 as components
 # 1. PAGE CONFIG & PROFESSIONAL DYNO CSS
 # ==========================================
 st.set_page_config(
-    page_title="HIAR AXIS VIRTUAL DYNO v8",
+    page_title="PENDAWA AXIS VIRTUAL DYNO v10",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -20,7 +20,7 @@ st.markdown("""
     
     .dyno-header {
         background: linear-gradient(90deg, #111111 0%, #222222 100%);
-        padding: 10px 18px;
+        padding: 12px 20px;
         border-radius: 4px;
         border-bottom: 3px solid #00FF66;
         margin-bottom: 15px;
@@ -28,9 +28,22 @@ st.markdown("""
         justify-content: space-between;
         align-items: center;
     }
-    .dyno-title { font-size: 1.3rem; font-weight: bold; color: #FFFFFF; letter-spacing: 1px; }
+    .dyno-title { font-size: 1.4rem; font-weight: bold; color: #FFFFFF; letter-spacing: 1px; display: flex; align-items: center; gap: 10px; }
     .dyno-subtitle { font-size: 0.85rem; color: #00FF66; }
     
+    @keyframes wheelieMotion {
+        0% { transform: translateY(0px) rotate(0deg); }
+        25% { transform: translateY(-4px) rotate(-12deg); }
+        50% { transform: translateY(-8px) rotate(-22deg); }
+        75% { transform: translateY(-4px) rotate(-10deg); }
+        100% { transform: translateY(0px) rotate(0deg); }
+    }
+    .wheelie-logo {
+        display: inline-block;
+        font-size: 1.8rem;
+        animation: wheelieMotion 1.8s infinite ease-in-out;
+    }
+
     .cc-box {
         background-color: #0D2818;
         border: 1px solid #00FF66;
@@ -54,7 +67,7 @@ DATABASE_REF = {
     "YAMAHA": {
         "XMAX 250 (Lokal Indonesia)": {
             "bore": 70.0, "stroke": 64.9, "v_head": 26.2, "valve_in": 30.0, "valve_out": 26.0, "venturi": 34.0, 
-            "hp_crank_std": 22.5, "torque_crank_std": 24.3, "peak_rpm_hp": 7000, "peak_rpm_tq": 5500, "limit_std": 9000, "weight_std": 179.0, 
+            "hp_crank_std": 22.8, "torque_crank_std": 24.3, "peak_rpm_hp": 7000, "peak_rpm_tq": 5500, "limit_std": 9000, "weight_std": 179.0, 
             "type": "single_big", "cvt_loss": 0.18, "top_speed": 145.0
         },
         "XMAX 300 (Euro Spec)": {
@@ -67,31 +80,56 @@ DATABASE_REF = {
             "hp_crank_std": 32.5, "torque_crank_std": 34.0, "peak_rpm_hp": 7500, "peak_rpm_tq": 6000, "limit_std": 9500, "weight_std": 180.0, 
             "type": "single_big", "cvt_loss": 0.17, "top_speed": 172.0
         },
-        "NMAX 155 / Aerox 155 (VVA)": {
+        "NMAX Turbo / Neo 155 VVA": {
             "bore": 58.0, "stroke": 58.7, "v_head": 14.6, "valve_in": 20.5, "valve_out": 17.5, "venturi": 28.0, 
-            "hp_crank_std": 15.1, "torque_crank_std": 13.9, "peak_rpm_hp": 8000, "peak_rpm_tq": 6500, "limit_std": 9500, "weight_std": 127.0, 
+            "hp_crank_std": 15.4, "torque_crank_std": 14.2, "peak_rpm_hp": 8000, "peak_rpm_tq": 6500, "limit_std": 9500, "weight_std": 130.0, 
+            "type": "single_small", "cvt_loss": 0.17, "top_speed": 128.0
+        },
+        "NMAX 155 / Aerox 155 VVA": {
+            "bore": 58.0, "stroke": 58.7, "v_head": 14.6, "valve_in": 20.5, "valve_out": 17.5, "venturi": 28.0, 
+            "hp_crank_std": 15.4, "torque_crank_std": 13.9, "peak_rpm_hp": 8000, "peak_rpm_tq": 6500, "limit_std": 9500, "weight_std": 127.0, 
             "type": "single_small", "cvt_loss": 0.18, "top_speed": 125.0
         },
-        "Mio Karbu 115": {
+        "Lexi 125 VVA": {
+            "bore": 52.0, "stroke": 58.7, "v_head": 12.8, "valve_in": 19.5, "valve_out": 16.5, "venturi": 26.0, 
+            "hp_crank_std": 11.8, "torque_crank_std": 11.3, "peak_rpm_hp": 8000, "peak_rpm_tq": 7000, "limit_std": 9500, "weight_std": 112.0, 
+            "type": "single_small", "cvt_loss": 0.18, "top_speed": 115.0
+        },
+        "Mio M3 / Fazzio / Filano 125": {
+            "bore": 52.4, "stroke": 57.9, "v_head": 12.5, "valve_in": 21.0, "valve_out": 18.0, "venturi": 24.0, 
+            "hp_crank_std": 9.5, "torque_crank_std": 9.6, "peak_rpm_hp": 6500, "peak_rpm_tq": 5000, "limit_std": 9200, "weight_std": 95.0, 
+            "type": "single_small", "cvt_loss": 0.19, "top_speed": 108.0
+        },
+        "Mio Karbu (Sporty/Smile 115)": {
             "bore": 50.0, "stroke": 57.9, "v_head": 13.7, "valve_in": 23.0, "valve_out": 19.0, "venturi": 24.0, 
-            "hp_crank_std": 8.8, "torque_crank_std": 7.84, "peak_rpm_hp": 8000, "peak_rpm_tq": 6500, "limit_std": 9000, "weight_std": 92.0, 
-            "type": "single_small", "cvt_loss": 0.20, "top_speed": 105.0
+            "hp_crank_std": 8.9, "torque_crank_std": 7.84, "peak_rpm_hp": 8000, "peak_rpm_tq": 6500, "limit_std": 9000, "weight_std": 92.0, 
+            "type": "single_small", "cvt_loss": 0.20, "top_speed": 102.0
         }
     },
     "HONDA": {
-        "Vario 160 / PCX 160 (eSP+)": {
+        "Forza 250 eSP+": {
+            "bore": 67.0, "stroke": 70.7, "v_head": 24.5, "valve_in": 29.0, "valve_out": 25.0, "venturi": 34.0, 
+            "hp_crank_std": 23.1, "torque_crank_std": 24.0, "peak_rpm_hp": 7750, "peak_rpm_tq": 6250, "limit_std": 9200, "weight_std": 182.0, 
+            "type": "single_big", "cvt_loss": 0.18, "top_speed": 142.0
+        },
+        "Vario 160 / PCX 160 / ADV 160": {
             "bore": 60.0, "stroke": 55.5, "v_head": 14.2, "valve_in": 27.0, "valve_out": 22.0, "venturi": 30.0, 
-            "hp_crank_std": 15.6, "torque_crank_std": 15.0, "peak_rpm_hp": 8500, "peak_rpm_tq": 6500, "limit_std": 9800, "weight_std": 117.0, 
+            "hp_crank_std": 15.8, "torque_crank_std": 15.0, "peak_rpm_hp": 8500, "peak_rpm_tq": 6500, "limit_std": 9800, "weight_std": 117.0, 
             "type": "single_small", "cvt_loss": 0.18, "top_speed": 128.0
         },
-        "Vario 150 / PCX 150": {
+        "Vario 150 / PCX 150 eSP": {
             "bore": 57.3, "stroke": 57.9, "v_head": 15.6, "valve_in": 29.0, "valve_out": 23.0, "venturi": 26.0, 
-            "hp_crank_std": 12.9, "torque_crank_std": 13.4, "peak_rpm_hp": 8500, "peak_rpm_tq": 5000, "limit_std": 9800, "weight_std": 109.0, 
+            "hp_crank_std": 13.1, "torque_crank_std": 13.4, "peak_rpm_hp": 8500, "peak_rpm_tq": 5000, "limit_std": 9800, "weight_std": 109.0, 
             "type": "single_small", "cvt_loss": 0.19, "top_speed": 118.0
         },
-        "BeAT FI / Scoopy 110": {
+        "Vario 125 eSP": {
+            "bore": 52.4, "stroke": 57.9, "v_head": 12.5, "valve_in": 24.0, "valve_out": 21.0, "venturi": 24.0, 
+            "hp_crank_std": 11.1, "torque_crank_std": 10.8, "peak_rpm_hp": 8500, "peak_rpm_tq": 5000, "limit_std": 9800, "weight_std": 111.0, 
+            "type": "single_small", "cvt_loss": 0.19, "top_speed": 112.0
+        },
+        "BeAT FI eSP / Scoopy eSP 110": {
             "bore": 50.0, "stroke": 55.1, "v_head": 12.7, "valve_in": 22.0, "valve_out": 19.0, "venturi": 22.0, 
-            "hp_crank_std": 8.56, "torque_crank_std": 9.01, "peak_rpm_hp": 7500, "peak_rpm_tq": 6500, "limit_std": 9200, "weight_std": 89.0, 
+            "hp_crank_std": 8.68, "torque_crank_std": 9.01, "peak_rpm_hp": 7500, "peak_rpm_tq": 6500, "limit_std": 9200, "weight_std": 90.0, 
             "type": "single_small", "cvt_loss": 0.20, "top_speed": 102.0
         }
     }
@@ -104,37 +142,75 @@ if 'run_trigger' not in st.session_state:
     st.session_state.run_trigger = False
 
 # ==========================================
-# 3. THERMODYNAMIC ENGINE CALCULATION
+# 3. DYNAMIC THERMODYNAMIC ENGINE (A. GRAHAM BELL MODEL)
 # ==========================================
-def calculate_smooth_dyno_curve(std_spec, in_bore, in_stroke, in_vhead, in_v_in, in_v_out, in_venturi, in_afr, limit_rpm):
-    raw_rpms = np.arange(1000, int(limit_rpm) + 100, 100)
-    rpms = [int(r) for r in raw_rpms]
-    
+def calculate_smooth_dyno_curve(std_spec, in_bore, in_stroke, in_vhead, in_v_in, in_v_out, in_venturi, in_dur_in, in_dur_out, in_afr, limit_rpm):
     cc_calc = float((0.785398 * float(in_bore)**2 * float(in_stroke)) / 1000.0)
     cr_calc = float((cc_calc + float(in_vhead)) / float(in_vhead))
     
     cvt_loss = float(std_spec.get('cvt_loss', 0.18))
-    crank_tq_peak = float(std_spec['torque_crank_std'])
-    if in_bore > std_spec['bore']: crank_tq_peak *= (1.0 + (in_bore - std_spec['bore'])*0.02)
-    wheel_tq_peak = crank_tq_peak * (1.0 - cvt_loss)
     
-    rpm_tq_peak = float(std_spec['peak_rpm_tq'])
-    rpm_hp_peak = float(std_spec['peak_rpm_hp'])
+    # 1. DYNAMIC POWERBAND SHIFT CALCULATIONS
+    valve_area_ratio = (in_v_in / in_bore)**2
+    
+    # Optimum Intake Ramming Velocity Peak RPM (~82 m/s)
+    rpm_tq_dynamic = (82.0 * 60000.0) / (2.0 * in_stroke / valve_area_ratio)
+    
+    # Camshaft Duration Shift: +10 deg duration shifts torque peak +350 RPM higher
+    cam_dur_avg = (float(in_dur_in) + float(in_dur_out)) / 2.0
+    cam_shift_rpm = (cam_dur_avg - 240.0) * 35.0
+    
+    # Throttle Restriction Shift
+    tb_ratio = in_venturi / in_v_in
+    tb_shift_rpm = - (0.85 - tb_ratio) * 3500.0 if tb_ratio < 0.85 else 0.0
+    
+    # Final Dynamic Peak RPMs
+    final_rpm_tq_peak = float(np.clip(rpm_tq_dynamic + cam_shift_rpm + tb_shift_rpm, 3500.0, limit_rpm - 2000.0))
+    final_rpm_hp_peak = float(np.clip(final_rpm_tq_peak + 1800.0 + (cam_dur_avg - 240.0) * 18.0, final_rpm_tq_peak + 1200.0, limit_rpm - 600.0))
+    
+    # 2. THERMAL EFFICIENCY & DETONATION PENALTY
+    thermal_eff = 1.0
+    if cr_calc > 14.5:
+        # Severe knocking penalty on extreme CR
+        thermal_eff = 1.0 - ((cr_calc - 14.5) * 0.15)
+    elif cr_calc > 13.0:
+        thermal_eff = 1.0 - ((cr_calc - 13.0) * 0.03)
+        
+    std_cc = (std_spec['bore']**2 * 0.785398 * std_spec['stroke']) / 1000.0
+    bmep_bar = (float(std_spec['hp_crank_std']) * 120000.0) / (std_cc * std_spec['peak_rpm_hp'] * 0.85)
+    
+    raw_rpms = np.arange(1000, int(limit_rpm) + 100, 100)
+    rpms = [int(r) for r in raw_rpms]
     
     wheel_hps, torques, afrs = [], [], []
     
     for r in rpms:
+        pspeed_r = (2.0 * in_stroke * r) / 60000.0
+        gsin_r = ((in_bore / in_v_in)**2) * pspeed_r
+        
+        # Volumetric Efficiency Curve
         if r < 1500:
-            tq = wheel_tq_peak * 0.30 * (r / 1500.0)
+            ve = 0.25 * (r / 1500.0)
+        elif r <= final_rpm_tq_peak:
+            ve = 0.40 + 0.60 * math.exp(-((r - final_rpm_tq_peak) / 3600.0)**2)
         else:
-            tq = wheel_tq_peak * (0.40 + 0.60 * math.exp(-((r - rpm_tq_peak) / 3800.0)**2))
-            if r > limit_rpm - 400:
-                tq *= (1.0 - ((r - (limit_rpm - 400)) / 400.0)**2)
-                
-        hp = (tq * r) / 7023.5 if r > 0 else 0.0
+            ve = 0.40 + 0.60 * math.exp(-((r - final_rpm_tq_peak) / 2200.0)**2)
+            
+        # CHOKE FLOW PENALTY (Spek Ngaco / Klep kekecilan)
+        if gsin_r > 125.0:
+            ve *= (125.0 / gsin_r)**2.2
+        elif gsin_r > 108.0:
+            ve *= (108.0 / gsin_r)**1.2
+            
+        afr_mod = 1.0 - abs(float(in_afr) - 13.0) * 0.035
+        
+        crank_tq = (bmep_bar * cc_calc * ve * thermal_eff * afr_mod) / (2.0 * math.pi * 10.0)
+        wheel_tq = crank_tq * (1.0 - cvt_loss)
+        
+        hp = (wheel_tq * r) / 7023.5 if r > 0 else 0.0
         afr_val = float(in_afr) + 0.2 * math.sin(r / 800.0)
         
-        torques.append(float(round(max(0.0, tq), 2)))
+        torques.append(float(round(max(0.0, wheel_tq), 2)))
         wheel_hps.append(float(round(max(0.0, hp), 2)))
         afrs.append(float(round(afr_val, 2)))
         
@@ -225,9 +301,9 @@ with st.sidebar:
         st.rerun()
 
 # ==========================================
-# 5. FULLY SYNCHRONIZED STUDIO CANVAS COMPONENT (v8.0)
+# 5. STUDIO CANVAS COMPONENT WITH GRIDLINES & WATERMARK (v10.0)
 # ==========================================
-def render_full_dyno_studio_v8(history_list, auto_start, current_run_data, top_speed, limit_rpm, engine_type):
+def render_full_dyno_studio_v10(history_list, auto_start, current_run_model_name, top_speed, limit_rpm, engine_type):
     
     history_payload = []
     for h in history_list:
@@ -278,7 +354,7 @@ def render_full_dyno_studio_v8(history_list, auto_start, current_run_data, top_s
                 </div>
             </div>
 
-            <!-- DYNAMIC GRAPH CANVAS -->
+            <!-- DYNAMIC GRAPH CANVAS WITH GRIDLINES & WATERMARK -->
             <div style="position:relative; width:100%;">
                 <canvas id="graphCanvas" width="850" height="420" style="width:100%; background-color:#050505; border:1px solid #333; border-radius:4px;"></canvas>
             </div>
@@ -290,8 +366,8 @@ def render_full_dyno_studio_v8(history_list, auto_start, current_run_data, top_s
         const limitRpm = {limit_rpm_i};
         const topSpeed = {top_speed_f};
         const engineType = "{engine_type}";
+        const currentModelName = "{current_run_model_name}";
 
-        // TACHOMETER (1-15 x1000 RPM)
         function drawTachometer(value) {{
             const canvas = document.getElementById('tachoCanvas');
             if (!canvas) return;
@@ -300,19 +376,16 @@ def render_full_dyno_studio_v8(history_list, auto_start, current_run_data, top_s
             
             ctx.clearRect(0, 0, 190, 190);
             
-            // Outer Dial
             ctx.beginPath();
             ctx.arc(cx, cy, r, 0.75 * Math.PI, 2.25 * Math.PI);
             ctx.strokeStyle = '#222'; ctx.lineWidth = 12; ctx.stroke();
             
-            // Active Arc
             const valK = Math.min(value, 15000) / 1000.0;
             const currAngle = (0.75 + (valK / 15.0) * 1.5) * Math.PI;
             ctx.beginPath();
             ctx.arc(cx, cy, r, 0.75 * Math.PI, currAngle);
             ctx.strokeStyle = '#00FF00'; ctx.lineWidth = 8; ctx.stroke();
             
-            // Numbers 1 to 15
             ctx.fillStyle = '#AAA'; ctx.font = '10px Consolas'; ctx.textAlign = 'center';
             for (let i = 1; i <= 15; i++) {{
                 let a = (0.75 + (i / 15.0) * 1.5) * Math.PI;
@@ -321,7 +394,6 @@ def render_full_dyno_studio_v8(history_list, auto_start, current_run_data, top_s
                 ctx.fillText(i, tx, ty + 3);
             }}
             
-            // Center Text
             ctx.fillStyle = '#FFF'; ctx.font = 'bold 16px Consolas';
             ctx.fillText(Math.round(value), cx, cy + 20);
             ctx.fillStyle = '#00FF00'; ctx.font = 'bold 10px Consolas';
@@ -329,7 +401,6 @@ def render_full_dyno_studio_v8(history_list, auto_start, current_run_data, top_s
             ctx.fillStyle = '#888'; ctx.font = '9px Consolas';
             ctx.fillText("TACHOMETER", cx, cy - 25);
             
-            // Needle
             ctx.save();
             ctx.translate(cx, cy);
             ctx.rotate(currAngle + 0.5 * Math.PI);
@@ -340,7 +411,6 @@ def render_full_dyno_studio_v8(history_list, auto_start, current_run_data, top_s
             ctx.beginPath(); ctx.arc(cx, cy, 5, 0, 2 * Math.PI); ctx.fillStyle = '#FFF'; ctx.fill();
         }}
 
-        // SPEEDOMETER (0-200 KM/H)
         function drawSpeedometer(value) {{
             const canvas = document.getElementById('speedoCanvas');
             if (!canvas) return;
@@ -358,7 +428,6 @@ def render_full_dyno_studio_v8(history_list, auto_start, current_run_data, top_s
             ctx.arc(cx, cy, r, 0.75 * Math.PI, currAngle);
             ctx.strokeStyle = '#0088FF'; ctx.lineWidth = 8; ctx.stroke();
             
-            // Numbers 0 to 200 (Step 20)
             ctx.fillStyle = '#AAA'; ctx.font = '9px Consolas'; ctx.textAlign = 'center';
             for (let i = 0; i <= 10; i++) {{
                 let valNum = i * 20;
@@ -385,7 +454,6 @@ def render_full_dyno_studio_v8(history_list, auto_start, current_run_data, top_s
             ctx.beginPath(); ctx.arc(cx, cy, 5, 0, 2 * Math.PI); ctx.fillStyle = '#FFF'; ctx.fill();
         }}
 
-        // MULTI-RUN GRAPH CANVAS (PRESERVES PREVIOUS RUNS)
         function drawMultiRunChart(activeRunProgressLen) {{
             const canvas = document.getElementById('graphCanvas');
             if (!canvas) return;
@@ -399,7 +467,14 @@ def render_full_dyno_studio_v8(history_list, auto_start, current_run_data, top_s
             const afrGraphH = 70;
             const afrTopY = padT + mainGraphH + 20;
             
-            ctx.strokeStyle = '#222'; ctx.lineWidth = 1;
+            // BACKGROUND ENGINE WATERMARK
+            ctx.fillStyle = "rgba(255, 255, 255, 0.05)";
+            ctx.font = "bold 22px Consolas";
+            ctx.textAlign = "center";
+            ctx.fillText(currentModelName.toUpperCase(), w / 2, padT + mainGraphH / 2);
+            
+            // GRIDLINES
+            ctx.strokeStyle = '#2A2A2A'; ctx.lineWidth = 1;
             ctx.strokeRect(padL, padT, w - padL - padR, mainGraphH);
             ctx.strokeRect(padL, afrTopY, w - padL - padR, afrGraphH);
             
@@ -408,7 +483,17 @@ def render_full_dyno_studio_v8(history_list, auto_start, current_run_data, top_s
                 ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(w - padR, y); ctx.stroke();
             }}
             
-            // Dynamic Axis Calculation across all runs
+            const minRpmAxis = 1000;
+            const maxRpmAxis = limitRpm;
+            for (let rVal = 2000; rVal < maxRpmAxis; rVal += 2000) {{
+                let x = padL + ((rVal - minRpmAxis) / (maxRpmAxis - minRpmAxis)) * (w - padL - padR);
+                ctx.beginPath(); ctx.moveTo(x, padT); ctx.lineTo(x, padT + mainGraphH); ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(x, afrTopY); ctx.lineTo(x, afrTopY + afrGraphH); ctx.stroke();
+                
+                ctx.fillStyle = '#666'; ctx.font = '9px Consolas'; ctx.textAlign = 'center';
+                ctx.fillText(rVal, x, padT + mainGraphH + 12);
+            }}
+            
             let globalMaxHp = 20, globalMaxTq = 20;
             historyRuns.forEach(r => {{
                 if (r.max_hp > globalMaxHp) globalMaxHp = r.max_hp;
@@ -417,8 +502,6 @@ def render_full_dyno_studio_v8(history_list, auto_start, current_run_data, top_s
             
             const maxHpAxis = Math.ceil(globalMaxHp * 1.25);
             const maxTqAxis = Math.ceil(globalMaxTq * 1.25);
-            const minRpmAxis = 1000;
-            const maxRpmAxis = limitRpm;
             
             ctx.fillStyle = '#FFFF00'; ctx.font = '11px Consolas'; ctx.textAlign = 'left';
             ctx.fillText("Wheel POWER [HP]", padL, padT - 10);
@@ -447,7 +530,6 @@ def render_full_dyno_studio_v8(history_list, auto_start, current_run_data, top_s
                 }}
                 
                 if (drawLen > 1) {{
-                    // Torque Line
                     ctx.beginPath(); ctx.strokeStyle = tqColor; ctx.lineWidth = 2.5;
                     for (let i = 0; i < drawLen; i++) {{
                         let x = getX(run.rpms[i]), y = getYTq(run.tqs[i]);
@@ -455,7 +537,6 @@ def render_full_dyno_studio_v8(history_list, auto_start, current_run_data, top_s
                     }}
                     ctx.stroke();
                     
-                    // HP Line
                     ctx.beginPath(); ctx.strokeStyle = hpColor; ctx.lineWidth = 2.5;
                     for (let i = 0; i < drawLen; i++) {{
                         let x = getX(run.rpms[i]), y = getYHp(run.hps[i]);
@@ -463,7 +544,6 @@ def render_full_dyno_studio_v8(history_list, auto_start, current_run_data, top_s
                     }}
                     ctx.stroke();
                     
-                    // AFR Line
                     ctx.beginPath(); ctx.strokeStyle = '#00FF00'; ctx.lineWidth = 1.5;
                     for (let i = 0; i < drawLen; i++) {{
                         let x = getX(run.rpms[i]), y = getYAfr(run.afrs[i]);
@@ -472,11 +552,11 @@ def render_full_dyno_studio_v8(history_list, auto_start, current_run_data, top_s
                     ctx.stroke();
                 }}
                 
-                // Show Badges for Latest Run
+                // PEAK BADGES FOR LATEST RUN
                 if (idx === historyRuns.length - 1 && (activeRunProgressLen === null || activeRunProgressLen >= run.rpms.length)) {{
                     let xHp = getX(run.rpm_hp), yHp = getYHp(run.max_hp);
                     ctx.fillStyle = hpColor;
-                    ctx.fillRect(xHp - 70, yHp - 30, 140, 20);
+                    ctx.fillRect(xHp - 75, yHp - 30, 150, 20);
                     ctx.fillStyle = '#000'; ctx.font = 'bold 10px Consolas'; ctx.textAlign = 'center';
                     ctx.fillText("⚡ PEAK HP: " + run.max_hp.toFixed(2) + " @" + run.rpm_hp, xHp, yHp - 16);
                     ctx.beginPath(); ctx.arc(xHp, yHp, 4, 0, 2 * Math.PI); ctx.fillStyle = hpColor; ctx.fill();
@@ -491,7 +571,6 @@ def render_full_dyno_studio_v8(history_list, auto_start, current_run_data, top_s
             }});
         }}
 
-        // INITIAL STANDBY DISPLAY
         window.onload = function() {{
             drawTachometer(0);
             drawSpeedometer(0);
@@ -502,7 +581,6 @@ def render_full_dyno_studio_v8(history_list, auto_start, current_run_data, top_s
             }}
         }};
 
-        // MASTER 20s RUN CYCLE
         function startDyno20sCycle() {{
             document.getElementById('dynoStatus').innerText = "RUNNING SWEEP (20s)...";
             document.getElementById('dynoStatus').style.color = "#FFFF00";
@@ -521,14 +599,9 @@ def render_full_dyno_studio_v8(history_list, auto_start, current_run_data, top_s
             const idleFreq = (engineType === 'twin') ? 50 : 32;
             const limitFreq = (engineType === 'twin') ? 520 : 270;
             
-            // 0s-5s Idle
             osc.frequency.setValueAtTime(idleFreq, now);
             osc.frequency.setValueAtTime(idleFreq, now + 5.0);
-            
-            // 5s-15s Sweep
             osc.frequency.exponentialRampToValueAtTime(limitFreq, now + 15.0);
-            
-            // 15s-20s Decel
             osc.frequency.exponentialRampToValueAtTime(idleFreq, now + 20.0);
             
             gain.gain.setValueAtTime(0.01, now);
@@ -556,24 +629,21 @@ def render_full_dyno_studio_v8(history_list, auto_start, current_run_data, top_s
                 let visiblePoints = 0;
                 
                 if (elapsed <= 5.0) {{
-                    // 0-5s: Idle 1200 RPM
                     currentRpm = 1200 + Math.sin(elapsed * 6) * 30;
                     currentSpeed = 0;
                     visiblePoints = 0;
                 }} else if (elapsed <= 15.0) {{
-                    // 5-15s: 10s Ramp Sweep
                     const progress = (elapsed - 5.0) / 10.0;
                     currentRpm = 1200 + progress * (limitRpm - 1200);
                     currentSpeed = progress * topSpeed;
                     visiblePoints = Math.floor(progress * activeRun.rpms.length);
                 }} else if (elapsed <= 20.0) {{
-                    // 15-20s: 5s Decel Idle
                     const decelProg = (elapsed - 15.0) / 5.0;
                     currentRpm = limitRpm - decelProg * (limitRpm - 1200);
                     currentSpeed = topSpeed * (1.0 - decelProg);
                     visiblePoints = activeRun.rpms.length;
                 }} else {{
-                    currentRpm = 0; // Return Standby
+                    currentRpm = 0;
                     currentSpeed = 0;
                     visiblePoints = activeRun.rpms.length;
                     document.getElementById('dynoStatus').innerText = "COMPLETED";
@@ -606,11 +676,11 @@ def render_full_dyno_studio_v8(history_list, auto_start, current_run_data, top_s
 
 st.markdown(f"""
 <div class="dyno-header">
-    <div>
-        <span class="dyno-title">HORSE POWER RUN &nbsp;|&nbsp; {user_run_label.upper()}</span>
+    <div class="dyno-title">
+        <span class="wheelie-logo">🏍️💨</span> PENDAWA AXIS VIRTUAL DYNO
     </div>
     <div class="dyno-subtitle">
-        CORR: 1.000 INY &nbsp;|&nbsp; SAE J1349 &nbsp;|&nbsp; REALTIME CHASSIS DYNO
+        RUN: {user_run_label.upper()} &nbsp;|&nbsp; CORR: 1.000 INY &nbsp;|&nbsp; SAE J1349
     </div>
 </div>
 """, unsafe_allow_html=True)
@@ -619,7 +689,7 @@ auto_start_run = False
 
 if st.session_state.run_trigger:
     rpms, hps, tqs, afrs, max_hp, rpm_hp, max_tq, rpm_tq, cc_calc, cr_calc, pspeed, gsin, gsout = calculate_smooth_dyno_curve(
-        std, in_bore, in_stroke, in_vhead, in_v_in, in_v_out, in_venturi, in_afr, std['limit_std']
+        std, in_bore, in_stroke, in_vhead, in_v_in, in_v_out, in_venturi, in_dur_in, in_dur_out, in_afr, std['limit_std']
     )
     
     st.session_state.history.append({
@@ -646,13 +716,12 @@ if st.session_state.run_trigger:
     auto_start_run = True
     st.session_state.run_trigger = False
 
-# Render Studio Canvas Component
 latest_run = st.session_state.history[-1] if st.session_state.history else None
 
-render_full_dyno_studio_v8(
+render_full_dyno_studio_v10(
     st.session_state.history,
     auto_start_run,
-    latest_run,
+    selected_model,
     std.get('top_speed', 140.0),
     std['limit_std'],
     std.get('type', 'single_small')
@@ -732,4 +801,4 @@ if st.session_state.history:
         for p in parts:
             st.write(p)
 
-st.caption("HIAR AXIS VIRTUAL DYNO v8.0 — Full Dynamic Analog Tacho & Multi-Run Canvas System.")
+st.caption("PENDAWA AXIS VIRTUAL DYNO v10.0 — Advanced Dynamic Engine Tuning System.")
