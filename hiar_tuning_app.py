@@ -9,7 +9,7 @@ import streamlit.components.v1 as components
 # 1. PAGE CONFIG & PROFESSIONAL DYNO CSS
 # ==========================================
 st.set_page_config(
-    page_title="PENDAWA AXIS VIRTUAL DYNO v12",
+    page_title="PENDAWA AXIS VIRTUAL DYNO v13",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -142,9 +142,9 @@ if 'run_trigger' not in st.session_state:
     st.session_state.run_trigger = False
 
 # ==========================================
-# 3. ACCURATE THERMODYNAMIC ENGINE (USER LIMIT RPM)
+# 3. ACCURATE THERMODYNAMIC ENGINE & DYNAMIC TOP SPEED
 # ==========================================
-def calculate_smooth_dyno_curve(std_spec, in_bore, in_stroke, in_vhead, in_v_in, in_v_out, in_venturi, in_dur_in, in_dur_out, in_afr, user_limit_rpm):
+def calculate_smooth_dyno_curve(std_spec, in_bore, in_stroke, in_vhead, in_v_in, in_v_out, in_venturi, in_dur_in, in_dur_out, in_afr, user_limit_rpm, in_joki):
     cc_calc = float((0.785398 * float(in_bore)**2 * float(in_stroke)) / 1000.0)
     cr_calc = float((cc_calc + float(in_vhead)) / float(in_vhead))
     
@@ -153,11 +153,9 @@ def calculate_smooth_dyno_curve(std_spec, in_bore, in_stroke, in_vhead, in_v_in,
     
     cvt_loss = float(std_spec.get('cvt_loss', 0.18))
     
-    # Baseline Crank Torque & Wheel Torque Scaling
     crank_tq_base = float(std_spec['torque_crank_std']) * cc_ratio
     wheel_tq_base = crank_tq_base * (1.0 - cvt_loss)
     
-    # Compression Ratio Thermal Factor
     cr_std = (std_cc + std_spec['v_head']) / std_spec['v_head']
     cr_diff = cr_calc - cr_std
     
@@ -166,7 +164,6 @@ def calculate_smooth_dyno_curve(std_spec, in_bore, in_stroke, in_vhead, in_v_in,
     else:
         thermal_factor = 1.0 + cr_diff * 0.015
         
-    # Dynamic Peak RPM Calculations
     valve_area_ratio = (in_v_in / in_bore)**2
     rpm_tq_dynamic = (82.0 * 60000.0) / (2.0 * in_stroke / valve_area_ratio)
     
@@ -179,7 +176,6 @@ def calculate_smooth_dyno_curve(std_spec, in_bore, in_stroke, in_vhead, in_v_in,
     final_rpm_tq_peak = float(np.clip(rpm_tq_dynamic + cam_shift_rpm + tb_shift, 3500.0, user_limit_rpm - 2000.0))
     final_rpm_hp_peak = float(np.clip(final_rpm_tq_peak + 1800.0 + (cam_dur_avg - 240.0) * 18.0, final_rpm_tq_peak + 1200.0, user_limit_rpm - 800.0))
     
-    # Generate RPMS up to user_limit_rpm
     raw_rpms = np.arange(1000, int(user_limit_rpm) + 100, 100)
     rpms = [int(r) for r in raw_rpms]
     
@@ -189,7 +185,6 @@ def calculate_smooth_dyno_curve(std_spec, in_bore, in_stroke, in_vhead, in_v_in,
         pspeed_r = (2.0 * in_stroke * r) / 60000.0
         gsin_r = ((in_bore / in_v_in)**2) * pspeed_r
         
-        # Volumetric Efficiency Shape
         if r < 1500:
             ve_shape = 0.25 * (r / 1500.0)
         elif r <= final_rpm_tq_peak:
@@ -197,12 +192,10 @@ def calculate_smooth_dyno_curve(std_spec, in_bore, in_stroke, in_vhead, in_v_in,
         else:
             ve_shape = 0.45 + 0.55 * math.exp(-((r - final_rpm_tq_peak) / 2200.0)**2)
             
-        # High-RPM Breathing Roll-Off (Ensures HP drops after peak)
         if r > final_rpm_hp_peak:
             high_rpm_decay = math.exp(-((r - final_rpm_hp_peak) / 1800.0)**1.8)
             ve_shape *= high_rpm_decay
             
-        # Choke Flow Penalty
         choke_factor = 1.0
         if gsin_r > 125.0:
             choke_factor = (125.0 / gsin_r)**2.2
@@ -213,7 +206,6 @@ def calculate_smooth_dyno_curve(std_spec, in_bore, in_stroke, in_vhead, in_v_in,
         
         wheel_tq = wheel_tq_base * ve_shape * choke_factor * thermal_factor * afr_mod
         
-        # Rev Limiter Cutout Drop
         if r > user_limit_rpm - 300:
             wheel_tq *= (1.0 - ((r - (user_limit_rpm - 300)) / 300.0)**2)
             
@@ -232,11 +224,21 @@ def calculate_smooth_dyno_curve(std_spec, in_bore, in_stroke, in_vhead, in_v_in,
     rpm_hp = int(rpms[idx_hp])
     rpm_tq = int(rpms[idx_tq])
     
+    # DYNAMIC TOP SPEED CALCULATION (Power & Drag Equation)
+    std_hp_wheel = float(std_spec['hp_crank_std']) * (1.0 - cvt_loss)
+    hp_ratio = max_hp / std_hp_wheel if std_hp_wheel > 0 else 1.0
+    
+    std_weight_total = float(std_spec['weight_std']) + 65.0
+    user_weight_total = float(std_spec['weight_std']) + float(in_joki)
+    weight_ratio = std_weight_total / user_weight_total
+    
+    calc_top_speed = float(round(std_spec['top_speed'] * (hp_ratio**(1.0/3.0)) * (weight_ratio**0.12), 1))
+    
     pspeed = float((2.0 * in_stroke * rpm_hp) / 60000.0)
     gsin = float(((in_bore / in_v_in)**2) * pspeed)
     gsout = float(((in_bore / in_v_out)**2) * pspeed)
     
-    return rpms, wheel_hps, torques, afrs, max_hp, rpm_hp, max_tq, rpm_tq, cc_calc, cr_calc, pspeed, gsin, gsout
+    return rpms, wheel_hps, torques, afrs, max_hp, rpm_hp, max_tq, rpm_tq, cc_calc, cr_calc, pspeed, gsin, gsout, calc_top_speed
 
 # ==========================================
 # 4. SIDEBAR CONTROLS
@@ -311,9 +313,9 @@ with st.sidebar:
         st.rerun()
 
 # ==========================================
-# 5. STUDIO CANVAS COMPONENT (v12.0)
+# 5. STUDIO CANVAS COMPONENT WITH DELAYED UNLOCK (v13.0)
 # ==========================================
-def render_full_dyno_studio_v12(history_list, auto_start, current_run_model_name, top_speed, user_limit_rpm, engine_type):
+def render_full_dyno_studio_v13(history_list, auto_start, current_run_model_name, calc_top_speed, user_limit_rpm, engine_type):
     
     history_payload = []
     for h in history_list:
@@ -333,7 +335,7 @@ def render_full_dyno_studio_v12(history_list, auto_start, current_run_model_name
     auto_start_js = "true" if auto_start else "false"
     
     limit_rpm_i = int(user_limit_rpm)
-    top_speed_f = float(top_speed)
+    top_speed_f = float(calc_top_speed)
     
     component_code = f"""
     <!DOCTYPE html>
@@ -587,11 +589,8 @@ def render_full_dyno_studio_v12(history_list, auto_start, current_run_model_name
             drawSpeedometer(0);
             drawMultiRunChart(null);
             
-            if (historyRuns.length > 0) {{
-                let lastRun = historyRuns[historyRuns.length - 1];
-                document.getElementById('tachoNote').innerText = "MAX RPM: -- RPM";
-                document.getElementById('speedoNote').innerText = "MAX SPEED: -- KM/H";
-            }}
+            document.getElementById('tachoNote').innerText = "MAX RPM: -- RPM";
+            document.getElementById('speedoNote').innerText = "MAX SPEED: -- KM/H";
             
             if (autoStart && historyRuns.length > 0) {{
                 startDyno20sCycle();
@@ -669,9 +668,9 @@ def render_full_dyno_studio_v12(history_list, auto_start, current_run_model_name
                     document.getElementById('dynoStatus').innerText = "COMPLETED";
                     document.getElementById('dynoStatus').style.color = "#00FF66";
                     
-                    // SHOW MAX READOUT NOTES ONLY AFTER RUN FINISHES
+                    // REVEAL READOUT NOTES ONLY AFTER 20s RUN FINISHES
                     document.getElementById('tachoNote').innerText = "MAX RPM: " + limitRpm + " RPM";
-                    document.getElementById('speedoNote').innerText = "MAX SPEED: " + topSpeed + " KM/H";
+                    document.getElementById('speedoNote').innerText = "MAX SPEED: " + topSpeed.toFixed(1) + " KM/H";
                 }}
                 
                 drawTachometer(currentRpm);
@@ -710,10 +709,11 @@ st.markdown(f"""
 """, unsafe_allow_html=True)
 
 auto_start_run = False
+calc_top_speed = std.get('top_speed', 140.0)
 
 if st.session_state.run_trigger:
-    rpms, hps, tqs, afrs, max_hp, rpm_hp, max_tq, rpm_tq, cc_calc, cr_calc, pspeed, gsin, gsout = calculate_smooth_dyno_curve(
-        std, in_bore, in_stroke, in_vhead, in_v_in, in_v_out, in_venturi, in_dur_in, in_dur_out, in_afr, in_rpm
+    rpms, hps, tqs, afrs, max_hp, rpm_hp, max_tq, rpm_tq, cc_calc, cr_calc, pspeed, gsin, gsout, calc_top_speed = calculate_smooth_dyno_curve(
+        std, in_bore, in_stroke, in_vhead, in_v_in, in_v_out, in_venturi, in_dur_in, in_dur_out, in_afr, in_rpm, in_joki
     )
     
     st.session_state.history.append({
@@ -726,6 +726,7 @@ if st.session_state.run_trigger:
         "RPM_HP": rpm_hp,
         "Max_Nm": max_tq,
         "RPM_Nm": rpm_tq,
+        "calc_top_speed": calc_top_speed,
         "pspeed": pspeed,
         "gsin": gsin,
         "gsout": gsout,
@@ -741,16 +742,19 @@ if st.session_state.run_trigger:
     st.session_state.run_trigger = False
 
 latest_run = st.session_state.history[-1] if st.session_state.history else None
+if latest_run:
+    calc_top_speed = latest_run.get("calc_top_speed", std.get('top_speed', 140.0))
 
-render_full_dyno_studio_v12(
+render_full_dyno_studio_v13(
     st.session_state.history,
     auto_start_run,
     selected_model,
-    std.get('top_speed', 140.0),
-    in_rpm,  # FIXED: Passing user_limit_rpm (in_rpm) directly!
+    calc_top_speed,
+    in_rpm,
     std.get('type', 'single_small')
 )
 
+# SHOW TABLES & ANALYSIS ONLY WHEN HISTORY HAS RUNS
 if st.session_state.history:
     latest = st.session_state.history[-1]
     
@@ -825,4 +829,4 @@ if st.session_state.history:
         for p in parts:
             st.write(p)
 
-st.caption("PENDAWA AXIS VIRTUAL DYNO v12.0 — Fixed User Limit RPM & Accurate High-RPM Roll-Off System.")
+st.caption("PENDAWA AXIS VIRTUAL DYNO v13.0 — Dynamic Top Speed & Delayed Unlock Studio System.")
