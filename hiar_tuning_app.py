@@ -4,14 +4,12 @@ import math
 import json
 import pandas as pd
 import streamlit.components.v1 as components
-import plotly.graph_objects as go
-from plotly.subplots import make_subplots
 
 # ==========================================
 # 1. PAGE CONFIG & PROFESSIONAL DYNO CSS
 # ==========================================
 st.set_page_config(
-    page_title="HIAR AXIS VIRTUAL DYNO v6.1",
+    page_title="HIAR AXIS VIRTUAL DYNO v7",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -33,20 +31,17 @@ st.markdown("""
     .dyno-title { font-size: 1.3rem; font-weight: bold; color: #FFFFFF; letter-spacing: 1px; }
     .dyno-subtitle { font-size: 0.85rem; color: #00FF66; }
     
-    .gauge-card {
-        background-color: #0D0D0D;
-        border: 2px solid #222222;
-        border-radius: 6px;
-        padding: 10px 14px;
-        margin-bottom: 8px;
-        text-align: right;
-        box-shadow: inset 0 0 10px rgba(0,0,0,0.9);
+    .cc-box {
+        background-color: #0D2818;
+        border: 1px solid #00FF66;
+        border-radius: 5px;
+        padding: 8px 12px;
+        margin-bottom: 12px;
+        text-align: center;
     }
-    .gauge-label { font-size: 0.8rem; color: #888888; text-transform: uppercase; float: left; }
-    .gauge-value-main { font-size: 2.2rem; font-weight: 900; color: #00FF00; text-shadow: 0 0 10px rgba(0, 255, 0, 0.5); line-height: 1.1; }
-    .gauge-sub-row { font-size: 0.78rem; color: #666666; border-top: 1px solid #1A1A1A; margin-top: 4px; padding-top: 2px; }
-    .gauge-value-sub { color: #00CC00; font-weight: bold; }
-    
+    .cc-title { font-size: 0.75rem; color: #888; text-transform: uppercase; }
+    .cc-value { font-size: 1.4rem; font-weight: bold; color: #00FF66; }
+
     .stock-badge { background-color: #00FF66; color: #000; font-size: 0.75rem; font-weight: bold; padding: 2px 6px; border-radius: 3px; }
     .tuned-badge { background-color: #FF9900; color: #000; font-size: 0.75rem; font-weight: bold; padding: 2px 6px; border-radius: 3px; }
 </style>
@@ -106,15 +101,16 @@ if 'history' not in st.session_state:
     st.session_state.history = []
 
 # ==========================================
-# 3. THERMODYNAMIC ENGINE (STRICT PYTHON TYPES)
+# 3. THERMODYNAMIC ENGINE CALCULATION
 # ==========================================
-def calculate_smooth_dyno_curve(std_spec, in_bore, in_stroke, in_venturi, in_afr, limit_rpm):
+def calculate_smooth_dyno_curve(std_spec, in_bore, in_stroke, in_vhead, in_v_in, in_v_out, in_venturi, in_afr, limit_rpm):
     raw_rpms = np.arange(1000, int(limit_rpm) + 100, 100)
     rpms = [int(r) for r in raw_rpms]
     
     cc_calc = float((0.785398 * float(in_bore)**2 * float(in_stroke)) / 1000.0)
-    cvt_loss = float(std_spec.get('cvt_loss', 0.18))
+    cr_calc = float((cc_calc + float(in_vhead)) / float(in_vhead))
     
+    cvt_loss = float(std_spec.get('cvt_loss', 0.18))
     crank_tq_peak = float(std_spec['torque_crank_std'])
     if in_bore > std_spec['bore']: crank_tq_peak *= (1.0 + (in_bore - std_spec['bore'])*0.02)
     wheel_tq_peak = crank_tq_peak * (1.0 - cvt_loss)
@@ -141,26 +137,39 @@ def calculate_smooth_dyno_curve(std_spec, in_bore, in_stroke, in_venturi, in_afr
         
     max_hp = float(max(wheel_hps))
     max_tq = float(max(torques))
-    
     idx_hp = int(np.argmax(wheel_hps))
     idx_tq = int(np.argmax(torques))
     
     rpm_hp = int(rpms[idx_hp])
     rpm_tq = int(rpms[idx_tq])
     
-    return rpms, wheel_hps, torques, afrs, max_hp, rpm_hp, max_tq, rpm_tq, cc_calc
+    # Mechanics Physics Indicators
+    pspeed = float((2.0 * in_stroke * rpm_hp) / 60000.0)
+    gsin = float(((in_bore / in_v_in)**2) * pspeed)
+    gsout = float(((in_bore / in_v_out)**2) * pspeed)
+    
+    return rpms, wheel_hps, torques, afrs, max_hp, rpm_hp, max_tq, rpm_tq, cc_calc, cr_calc, pspeed, gsin, gsout
 
 # ==========================================
-# 4. SIDEBAR CONTROLS
+# 4. DYNAMIC SIDEBAR CONTROLS (BUG-FREE SWITCHING)
 # ==========================================
 with st.sidebar:
     st.markdown("### 🛠️ ENGINE SELECTION")
-    merk = st.selectbox("Manufacturer", list(DATABASE_REF.keys()))
-    model_name = st.selectbox("Engine Model", list(DATABASE_REF[merk].keys()))
-    std = DATABASE_REF[merk][model_name]
+    
+    # Fixed Manufacturer Selection
+    if "selected_merk" not in st.session_state:
+        st.session_state.selected_merk = list(DATABASE_REF.keys())[0]
+        
+    selected_merk = st.selectbox("Manufacturer", list(DATABASE_REF.keys()), key="selected_merk")
+    
+    # Dynamic Engine Model Selection tied to selected Manufacturer
+    models_for_merk = list(DATABASE_REF[selected_merk].keys())
+    selected_model = st.selectbox("Engine Model", models_for_merk, key=f"model_select_{selected_merk}")
+    
+    std = DATABASE_REF[selected_merk][selected_model]
     st.divider()
 
-    st.markdown("### ⚙️ ENGINE PARAMETERS")
+    st.markdown("### ⚙️ MECHANIC TUNING PARAMETERS")
     col_s1, col_s2 = st.columns(2)
     with col_s1:
         in_bore = st.number_input("Bore (mm)", value=float(std['bore']), step=0.5)
@@ -169,16 +178,29 @@ with st.sidebar:
         in_stroke = st.number_input("Stroke (mm)", value=float(std['stroke']), step=0.5)
         in_rpm = st.number_input("Limit RPM", value=int(std['limit_std']), step=250)
 
-    cc_calc = (0.785398 * float(in_bore)**2 * float(in_stroke)) / 1000.0
+    # Real-Time Display of Engine Displacement & CR (FIXED)
+    cc_real = (0.785398 * float(in_bore)**2 * float(in_stroke)) / 1000.0
+    cr_real = (cc_real + float(in_vhead)) / float(in_vhead)
+    
+    st.markdown(f"""
+    <div class="cc-box">
+        <div class="cc-title">DISPLACEMENT & COMPRESSION</div>
+        <div class="cc-value">{cc_real:.2f} cc &nbsp;|&nbsp; {cr_real:.2f}:1</div>
+    </div>
+    """, unsafe_allow_html=True)
 
-    expert_on = st.toggle("🧪 Tuning / Porting Specs", value=True)
+    expert_on = st.toggle("🧪 Valve & Flow Specs", value=True)
     if expert_on:
         in_v_in = st.number_input("Valve In (mm)", value=float(std['valve_in']), step=0.5)
         in_v_out = st.number_input("Valve Out (mm)", value=float(std['valve_out']), step=0.5)
         in_venturi = st.number_input("Throttle / Venturi (mm)", value=float(std['venturi']), step=0.5)
+        in_dur_in = st.slider("Cam Duration In (°)", 200, 320, 240)
+        in_dur_out = st.slider("Cam Duration Out (°)", 200, 320, 240)
         in_afr = st.slider("Target AFR Lambda", 11.0, 15.0, 13.0, step=0.1)
     else:
-        in_v_in, in_v_out, in_venturi, in_afr = std['valve_in'], std['valve_out'], std['venturi'], 13.0
+        in_v_in, in_v_out, in_venturi, in_dur_in, in_dur_out, in_afr = std['valve_in'], std['valve_out'], std['venturi'], 240, 240, 13.0
+
+    in_joki = st.number_input("Rider Weight (kg)", value=65.0, step=1.0)
 
     is_stock = (
         abs(in_bore - std['bore']) < 0.1 and
@@ -189,19 +211,22 @@ with st.sidebar:
     )
     
     status_suffix = "(Stock)" if is_stock else "(Tuned)"
-    default_run_name = f"{model_name} {status_suffix}"
+    default_run_name = f"{selected_model} {status_suffix}"
     
     st.divider()
     user_run_label = st.text_input("Run Label (Editable)", value=default_run_name)
     
-    run_btn = st.button("🚀 PROCESS & LOAD DYNO DATA")
+    run_btn = st.button("🚀 PROCESS & RUN DYNO SWEEP")
+    
+    if st.button("🗑️ RESET ALL HISTORY"):
+        st.session_state.history = []
+        st.rerun()
 
 # ==========================================
-# 5. FULLY SINKRON DYNO STUDIO COMPONENT (v6.1 FIXED)
+# 5. FULLY SYNCHRONIZED STUDIO CANVAS COMPONENT
 # ==========================================
-def render_full_dyno_studio_v6(rpms, hps, tqs, afrs, max_hp, rpm_hp, max_tq, rpm_tq, top_speed, limit_rpm, engine_type, run_label):
+def render_full_dyno_studio_v7(rpms, hps, tqs, afrs, max_hp, rpm_hp, max_tq, rpm_tq, top_speed, limit_rpm, engine_type, run_label):
     
-    # Explicit Type-Casting for JSON Safety
     rpms_clean = [int(x) for x in rpms]
     hps_clean = [float(x) for x in hps]
     tqs_clean = [float(x) for x in tqs]
@@ -278,7 +303,6 @@ def render_full_dyno_studio_v6(rpms, hps, tqs, afrs, max_hp, rpm_hp, max_tq, rpm
         const topSpeed = {top_speed_f};
         const engineType = "{engine_type}";
 
-        // DRAW ANALOG GAUGE
         function drawGauge(canvasId, value, maxVal, unit, isRpm) {{
             const canvas = document.getElementById(canvasId);
             if (!canvas) return;
@@ -287,14 +311,12 @@ def render_full_dyno_studio_v6(rpms, hps, tqs, afrs, max_hp, rpm_hp, max_tq, rpm
             
             ctx.clearRect(0, 0, 180, 180);
             
-            // Outer Dial
             ctx.beginPath();
             ctx.arc(cx, cy, r, 0.75 * Math.PI, 2.25 * Math.PI);
             ctx.strokeStyle = '#222';
             ctx.lineWidth = 10;
             ctx.stroke();
             
-            // Active Arc
             const currAngle = (0.75 + (Math.min(value, maxVal) / maxVal) * 1.5) * Math.PI;
             ctx.beginPath();
             ctx.arc(cx, cy, r, 0.75 * Math.PI, currAngle);
@@ -302,7 +324,6 @@ def render_full_dyno_studio_v6(rpms, hps, tqs, afrs, max_hp, rpm_hp, max_tq, rpm
             ctx.lineWidth = 6;
             ctx.stroke();
             
-            // Value
             ctx.fillStyle = '#FFF';
             ctx.font = 'bold 16px Consolas';
             ctx.textAlign = 'center';
@@ -311,7 +332,6 @@ def render_full_dyno_studio_v6(rpms, hps, tqs, afrs, max_hp, rpm_hp, max_tq, rpm
             ctx.font = '9px Consolas';
             ctx.fillText(unit, cx, cy + 38);
             
-            // Needle
             ctx.save();
             ctx.translate(cx, cy);
             ctx.rotate(currAngle + 0.5 * Math.PI);
@@ -329,7 +349,6 @@ def render_full_dyno_studio_v6(rpms, hps, tqs, afrs, max_hp, rpm_hp, max_tq, rpm
             ctx.fill();
         }}
 
-        // DRAW GRAPH CANVAS
         function drawDynoChart(visibleLen, showBadges) {{
             const canvas = document.getElementById('graphCanvas');
             if (!canvas) return;
@@ -343,7 +362,6 @@ def render_full_dyno_studio_v6(rpms, hps, tqs, afrs, max_hp, rpm_hp, max_tq, rpm
             const afrGraphH = 70;
             const afrTopY = padT + mainGraphH + 20;
             
-            // Borders & Grid
             ctx.strokeStyle = '#222'; ctx.lineWidth = 1;
             ctx.strokeRect(padL, padT, w - padL - padR, mainGraphH);
             ctx.strokeRect(padL, afrTopY, w - padL - padR, afrGraphH);
@@ -358,7 +376,6 @@ def render_full_dyno_studio_v6(rpms, hps, tqs, afrs, max_hp, rpm_hp, max_tq, rpm
             const minRpmAxis = 1000;
             const maxRpmAxis = limitRpm;
             
-            // Axis Labels
             ctx.fillStyle = '#FFFF00'; ctx.font = '11px Consolas'; ctx.textAlign = 'left';
             ctx.fillText("Wheel POWER [HP]", padL, padT - 10);
             
@@ -421,14 +438,12 @@ def render_full_dyno_studio_v6(rpms, hps, tqs, afrs, max_hp, rpm_hp, max_tq, rpm
             }}
         }}
 
-        // INITIAL INSTANT STATIC DRAW
         window.onload = function() {{
             drawGauge('tachoCanvas', 1200, limitRpm, 'RPM', true);
             drawGauge('speedoCanvas', 0, topSpeed, 'KM/H', false);
             drawDynoChart(rpms.length, true);
         }};
 
-        // MASTER 20s RUN CYCLE WITH AUDIO & ANIMATION
         function startFullDynoCycle() {{
             document.getElementById('dynoStatus').innerText = "RUNNING (20s)...";
             document.getElementById('dynoStatus').style.color = "#FFFF00";
@@ -447,14 +462,9 @@ def render_full_dyno_studio_v6(rpms, hps, tqs, afrs, max_hp, rpm_hp, max_tq, rpm
             const idleFreq = (engineType === 'twin') ? 50 : 32;
             const limitFreq = (engineType === 'twin') ? 520 : 270;
             
-            // 0s - 5s: Idle Sound
             osc.frequency.setValueAtTime(idleFreq, now);
             osc.frequency.setValueAtTime(idleFreq, now + 5.0);
-            
-            // 5s - 15s: Ramp Sweep
             osc.frequency.exponentialRampToValueAtTime(limitFreq, now + 15.0);
-            
-            // 15s - 20s: Decel Sound
             osc.frequency.exponentialRampToValueAtTime(idleFreq, now + 20.0);
             
             gain.gain.setValueAtTime(0.01, now);
@@ -518,7 +528,7 @@ def render_full_dyno_studio_v6(rpms, hps, tqs, afrs, max_hp, rpm_hp, max_tq, rpm
     components.html(component_code, height=680)
 
 # ==========================================
-# 6. MAIN EXECUTION & RENDER
+# 6. MAIN EXECUTION & EXPERT ANALYSIS
 # ==========================================
 
 st.markdown(f"""
@@ -533,20 +543,28 @@ st.markdown(f"""
 """, unsafe_allow_html=True)
 
 if run_btn:
-    rpms, hps, tqs, afrs, max_hp, rpm_hp, max_tq, rpm_tq, cc_calc = calculate_smooth_dyno_curve(
-        std, in_bore, in_stroke, in_venturi, in_afr, std['limit_std']
+    rpms, hps, tqs, afrs, max_hp, rpm_hp, max_tq, rpm_tq, cc_calc, cr_calc, pspeed, gsin, gsout = calculate_smooth_dyno_curve(
+        std, in_bore, in_stroke, in_vhead, in_v_in, in_v_out, in_venturi, in_afr, std['limit_std']
     )
     
     st.session_state.history.append({
         "Run": user_run_label,
         "Is_Stock": is_stock,
         "CC": round(cc_calc, 2),
-        "CR": round((cc_calc + in_vhead)/in_vhead, 2),
+        "CR": round(cr_calc, 2),
         "AFR": round(in_afr, 2),
         "Max_Wheel_HP": max_hp,
         "RPM_HP": rpm_hp,
         "Max_Nm": max_tq,
         "RPM_Nm": rpm_tq,
+        "pspeed": pspeed,
+        "gsin": gsin,
+        "gsout": gsout,
+        "bore": in_bore,
+        "stroke": in_stroke,
+        "v_in": in_v_in,
+        "v_out": in_v_out,
+        "venturi": in_venturi,
         "rpms": rpms, "hps": hps, "tqs": tqs, "afrs": afrs
     })
 
@@ -554,37 +572,13 @@ if st.session_state.history:
     latest = st.session_state.history[-1]
     
     # 1. Render Full Dyno Studio Canvas (Live 60 FPS + Audio)
-    render_full_dyno_studio_v6(
+    render_full_dyno_studio_v7(
         latest['rpms'], latest['hps'], latest['tqs'], latest['afrs'],
         latest['Max_Wheel_HP'], latest['RPM_HP'], latest['Max_Nm'], latest['RPM_Nm'],
         std.get('top_speed', 140.0), std['limit_std'], std.get('type', 'single_small'), latest['Run']
     )
     
-    # 2. Render Integrated Plotly Backup Graph
-    st.markdown("### 📊 HIGH-RESOLUTION DYNO GRAPH")
-    fig = make_subplots(
-        rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.04, row_heights=[0.75, 0.25]
-    )
-    fig.add_trace(go.Scatter(x=latest['rpms'], y=latest['hps'], name="Power (HP)", line=dict(color="#FFFF00", width=3)), row=1, col=1)
-    fig.add_trace(go.Scatter(x=latest['rpms'], y=latest['tqs'], name="Torque (Nm)", line=dict(color="#0088FF", width=3), yaxis="y2"), row=1, col=1)
-    fig.add_trace(go.Scatter(x=latest['rpms'], y=latest['afrs'], name="AFR", line=dict(color="#00FF00", width=2)), row=2, col=1)
-    
-    # Peak HP Annotation
-    fig.add_annotation(x=latest['RPM_HP'], y=latest['Max_Wheel_HP'], text=f"PEAK HP: {latest['Max_Wheel_HP']:.2f} @ {latest['RPM_HP']}", showarrow=True, arrowhead=2, bgcolor="#FFFF00", font=dict(color="#000"))
-    # Peak Tq Annotation
-    fig.add_annotation(x=latest['RPM_Nm'], y=latest['Max_Nm'], text=f"PEAK NM: {latest['Max_Nm']:.2f} @ {latest['RPM_Nm']}", showarrow=True, yref="y2", arrowhead=2, bgcolor="#0088FF", font=dict(color="#FFF"))
-
-    fig.update_layout(
-        template="plotly_dark", height=480, paper_bgcolor="#0A0A0A", plot_bgcolor="#050505",
-        margin=dict(l=40, r=40, t=20, b=20), showlegend=False,
-        yaxis=dict(title=dict(text="Wheel POWER [HP]", font=dict(color="#FFFF00")), gridcolor="#222"),
-        yaxis2=dict(title=dict(text="Engine Torque [Nm]", font=dict(color="#0088FF")), overlaying="y", side="right", showgrid=False),
-        yaxis3=dict(title=dict(text="AFR", font=dict(color="#00FF00")), gridcolor="#222", range=[10, 18]),
-        xaxis2=dict(title=dict(text="Engine Speed [RPM]"), gridcolor="#222", dtick=1000)
-    )
-    st.plotly_chart(fig, use_container_width=True)
-
-    # 3. Performance Summary Table
+    # 2. Performance Summary Table
     st.divider()
     st.markdown("### 📋 PERFORMANCE RUN SUMMARY TABLE")
     df_h = pd.DataFrame(st.session_state.history)
@@ -595,4 +589,64 @@ if st.session_state.history:
         "Max_Wheel_HP": "{:.2f}", "Max_Nm": "{:.2f}"
     }), use_container_width=True, hide_index=True)
 
-st.caption("HIAR AXIS VIRTUAL DYNO v6.1 — JSON Type-Cast Fixed & Fully Synchronized System.")
+    # 3. EXPERT ENGINE ANALYSIS & GRAHAM BELL RECOMMENDATIONS
+    st.divider()
+    st.markdown("## 🏁 EXPERT ENGINE ANALYSIS (A. GRAHAM BELL PRINCIPLES)")
+    
+    col_a1, col_a2, col_a3 = st.columns(3)
+    
+    with col_a1:
+        st.markdown("#### 1️⃣ Analisa Performa Mesin")
+        ps = latest['pspeed']
+        gs = latest['gsin']
+        cr = latest['CR']
+        
+        if ps > 21.0:
+            st.error(f"⚠️ **Piston Speed:** {ps:.2f} m/s (Melebihi batas aman material 21 m/s - Risiko patah stang seher tinggi).")
+        else:
+            st.success(f"✅ **Piston Speed:** {ps:.2f} m/s (Aman untuk kompetisi/harian, < 21 m/s).")
+            
+        if gs > 115.0:
+            st.error(f"⚠️ **Gas Velocity In:** {gs:.2f} m/s (Terjadi *Choke Flow*. Klep In terlalu kecil untuk RPM puncak).")
+        elif gs < 85.0:
+            st.warning(f"⚠️ **Gas Velocity In:** {gs:.2f} m/s (Velocity terlalu rendah. Torsi putaran bawah akan loyo).")
+        else:
+            st.success(f"✅ **Gas Velocity In:** {gs:.2f} m/s (Rentang optimum A. Graham Bell: 90–110 m/s).")
+            
+        if cr > 12.5:
+            st.warning(f"⚠️ **Rasio Kompresi:** {cr:.2f}:1 (Wajib bahan bakar Oktan ≥ 98 / RON 98+ untuk mencegah knocking).")
+        else:
+            st.info(f"ℹ️ **Rasio Kompresi:** {cr:.2f}:1 (Aman untuk bahan bakar harian).")
+
+    with col_a2:
+        st.markdown("#### 2️⃣ Rekomendasi Spesifikasi Ideal")
+        rec_vin = round(latest['bore'] * 0.52, 1)
+        rec_vout = round(rec_vin * 0.83, 1)
+        rec_tb = round(rec_vin * 0.88, 1)
+        rec_header = round(math.sqrt(latest['CC'] * 0.14) * 10.0, 1)
+        rec_vhead_target = round(latest['CC'] / 11.5, 2)
+        
+        st.markdown(f"""
+        * **Diameter Klep In Ideal:** `{rec_vin} mm`
+        * **Diameter Klep Out Ideal:** `{rec_vout} mm`
+        * **Throttle Body / Venturi Ideal:** `{rec_tb} mm`
+        * **Diameter Leher Knalpot (Header):** `{rec_header} mm`
+        * **Vol Dome Head Target (CR 12.5:1):** `{rec_vhead_target} cc`
+        """)
+
+    with col_a3:
+        st.markdown("#### 3️⃣ Panduan Part & Modifikasi Rekomendasi")
+        parts = []
+        if latest['gsin'] > 115.0:
+            parts.append(f"• **Ganti Set Klep In:** Perbesar ke ukuran {rec_vin} mm untuk mengatasi Choke Flow.")
+        if latest['venturi'] < rec_tb - 2.0:
+            parts.append(f"• **Upgrade Throttle Body:** Reamer/Ganti ke diameter {rec_tb} mm.")
+        if latest['CR'] > 13.5:
+            parts.append("• **Adjustment Gasket / Head Dome:** Tambah paking atau bubut dome untuk menurunkan CR ke 12.5:1.")
+        parts.append(f"• **Knalpot Custom:** Sesuaikan leher knalpot dengan diameter dalam {rec_header} mm.")
+        parts.append("• **ECU Standalone / Jetting:** Reflash/Mapping ulang debit BBM sesuai AFR target 13.0:1.")
+        
+        for p in parts:
+            st.write(p)
+
+st.caption("HIAR AXIS VIRTUAL DYNO v7.0 — Advanced Engine Tuning Engine & Graham Bell Diagnostics.")
