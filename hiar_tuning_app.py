@@ -9,7 +9,7 @@ import streamlit.components.v1 as components
 # 1. PAGE CONFIG & PROFESSIONAL DYNO CSS
 # ==========================================
 st.set_page_config(
-    page_title="HIAR AXIS VIRTUAL DYNO v7",
+    page_title="HIAR AXIS VIRTUAL DYNO v8",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -100,6 +100,9 @@ DATABASE_REF = {
 if 'history' not in st.session_state:
     st.session_state.history = []
 
+if 'run_trigger' not in st.session_state:
+    st.session_state.run_trigger = False
+
 # ==========================================
 # 3. THERMODYNAMIC ENGINE CALCULATION
 # ==========================================
@@ -143,7 +146,6 @@ def calculate_smooth_dyno_curve(std_spec, in_bore, in_stroke, in_vhead, in_v_in,
     rpm_hp = int(rpms[idx_hp])
     rpm_tq = int(rpms[idx_tq])
     
-    # Mechanics Physics Indicators
     pspeed = float((2.0 * in_stroke * rpm_hp) / 60000.0)
     gsin = float(((in_bore / in_v_in)**2) * pspeed)
     gsout = float(((in_bore / in_v_out)**2) * pspeed)
@@ -151,18 +153,16 @@ def calculate_smooth_dyno_curve(std_spec, in_bore, in_stroke, in_vhead, in_v_in,
     return rpms, wheel_hps, torques, afrs, max_hp, rpm_hp, max_tq, rpm_tq, cc_calc, cr_calc, pspeed, gsin, gsout
 
 # ==========================================
-# 4. DYNAMIC SIDEBAR CONTROLS (BUG-FREE SWITCHING)
+# 4. SIDEBAR CONTROLS
 # ==========================================
 with st.sidebar:
     st.markdown("### 🛠️ ENGINE SELECTION")
     
-    # Fixed Manufacturer Selection
     if "selected_merk" not in st.session_state:
         st.session_state.selected_merk = list(DATABASE_REF.keys())[0]
         
     selected_merk = st.selectbox("Manufacturer", list(DATABASE_REF.keys()), key="selected_merk")
     
-    # Dynamic Engine Model Selection tied to selected Manufacturer
     models_for_merk = list(DATABASE_REF[selected_merk].keys())
     selected_model = st.selectbox("Engine Model", models_for_merk, key=f"model_select_{selected_merk}")
     
@@ -178,7 +178,6 @@ with st.sidebar:
         in_stroke = st.number_input("Stroke (mm)", value=float(std['stroke']), step=0.5)
         in_rpm = st.number_input("Limit RPM", value=int(std['limit_std']), step=250)
 
-    # Real-Time Display of Engine Displacement & CR (FIXED)
     cc_real = (0.785398 * float(in_bore)**2 * float(in_stroke)) / 1000.0
     cr_real = (cc_real + float(in_vhead)) / float(in_vhead)
     
@@ -216,31 +215,37 @@ with st.sidebar:
     st.divider()
     user_run_label = st.text_input("Run Label (Editable)", value=default_run_name)
     
-    run_btn = st.button("🚀 PROCESS & RUN DYNO SWEEP")
+    if st.button("🚀 PROCESS & RUN DYNO SWEEP"):
+        st.session_state.run_trigger = True
     
+    st.divider()
     if st.button("🗑️ RESET ALL HISTORY"):
         st.session_state.history = []
+        st.session_state.run_trigger = False
         st.rerun()
 
 # ==========================================
-# 5. FULLY SYNCHRONIZED STUDIO CANVAS COMPONENT
+# 5. FULLY SYNCHRONIZED STUDIO CANVAS COMPONENT (v8.0)
 # ==========================================
-def render_full_dyno_studio_v7(rpms, hps, tqs, afrs, max_hp, rpm_hp, max_tq, rpm_tq, top_speed, limit_rpm, engine_type, run_label):
+def render_full_dyno_studio_v8(history_list, auto_start, current_run_data, top_speed, limit_rpm, engine_type):
     
-    rpms_clean = [int(x) for x in rpms]
-    hps_clean = [float(x) for x in hps]
-    tqs_clean = [float(x) for x in tqs]
-    afrs_clean = [float(x) for x in afrs]
+    history_payload = []
+    for h in history_list:
+        history_payload.append({
+            "Run": str(h["Run"]),
+            "rpms": [int(x) for x in h["rpms"]],
+            "hps": [float(x) for x in h["hps"]],
+            "tqs": [float(x) for x in h["tqs"]],
+            "afrs": [float(x) for x in h["afrs"]],
+            "max_hp": float(h["Max_Wheel_HP"]),
+            "rpm_hp": int(h["RPM_HP"]),
+            "max_tq": float(h["Max_Nm"]),
+            "rpm_tq": int(h["RPM_Nm"])
+        })
+        
+    history_json = json.dumps(history_payload)
+    auto_start_js = "true" if auto_start else "false"
     
-    rpms_json = json.dumps(rpms_clean)
-    hps_json = json.dumps(hps_clean)
-    tqs_json = json.dumps(tqs_clean)
-    afrs_json = json.dumps(afrs_clean)
-    
-    max_hp_f = float(max_hp)
-    max_tq_f = float(max_tq)
-    rpm_hp_i = int(rpm_hp)
-    rpm_tq_i = int(rpm_tq)
     limit_rpm_i = int(limit_rpm)
     top_speed_f = float(top_speed)
     
@@ -252,33 +257,24 @@ def render_full_dyno_studio_v7(rpms, hps, tqs, afrs, max_hp, rpm_hp, max_tq, rpm
             body {{ background-color: #0A0A0A; color: #FFF; font-family: Consolas, monospace; margin: 0; padding: 10px; }}
             .studio-card {{ border: 2px solid #222; border-radius: 8px; padding: 12px; background-color: #0D0D0D; }}
             .top-bar {{ display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }}
-            .run-btn {{
-                background-color: #00FF66; color: #000; font-weight: bold; font-size: 1.1rem;
-                border: none; padding: 10px 24px; border-radius: 4px; cursor: pointer;
-                box-shadow: 0 0 15px rgba(0, 255, 102, 0.4);
-            }}
-            .run-btn:hover {{ background-color: #00CC52; box-shadow: 0 0 20px rgba(0, 255, 102, 0.7); }}
             .gauges-row {{ display: flex; justify-content: center; gap: 30px; background-color: #111; padding: 10px; border-radius: 6px; border: 1px solid #333; margin-bottom: 12px; }}
         </style>
     </head>
     <body>
         <div class="studio-card">
             <div class="top-bar">
-                <button class="run-btn" onclick="startFullDynoCycle()">▶️ MULAI RUN DYNO (20 DETIK) + SUARA MESIN</button>
-                <div style="text-align:right; color:#00FF66; font-size:0.9rem;">
-                    STATUS: <span id="dynoStatus" style="color:#FFF;">READY</span>
+                <div style="font-weight:bold; font-size:1.0rem; color:#00FF66;">
+                    SYSTEM STATUS: <span id="dynoStatus" style="color:#FFF;">STANDBY</span>
                 </div>
             </div>
 
             <!-- ANALOG GAUGES -->
             <div class="gauges-row">
                 <div style="text-align:center;">
-                    <canvas id="tachoCanvas" width="180" height="180"></canvas>
-                    <div style="color:#00FF00; font-weight:bold; font-size:0.85rem; margin-top:2px;">TACHOMETER (RPM)</div>
+                    <canvas id="tachoCanvas" width="190" height="190"></canvas>
                 </div>
                 <div style="text-align:center;">
-                    <canvas id="speedoCanvas" width="180" height="180"></canvas>
-                    <div style="color:#0088FF; font-weight:bold; font-size:0.85rem; margin-top:2px;">SPEEDOMETER (KM/H)</div>
+                    <canvas id="speedoCanvas" width="190" height="190"></canvas>
                 </div>
             </div>
 
@@ -289,67 +285,108 @@ def render_full_dyno_studio_v7(rpms, hps, tqs, afrs, max_hp, rpm_hp, max_tq, rpm
         </div>
 
         <script>
-        const rpms = {rpms_json};
-        const hps = {hps_json};
-        const tqs = {tqs_json};
-        const afrs = {afrs_json};
-        
-        const maxHp = {max_hp_f};
-        const rpmHp = {rpm_hp_i};
-        const maxTq = {max_tq_f};
-        const rpmTq = {rpm_tq_i};
-        
+        const historyRuns = {history_json};
+        const autoStart = {auto_start_js};
         const limitRpm = {limit_rpm_i};
         const topSpeed = {top_speed_f};
         const engineType = "{engine_type}";
 
-        function drawGauge(canvasId, value, maxVal, unit, isRpm) {{
-            const canvas = document.getElementById(canvasId);
+        // TACHOMETER (1-15 x1000 RPM)
+        function drawTachometer(value) {{
+            const canvas = document.getElementById('tachoCanvas');
             if (!canvas) return;
             const ctx = canvas.getContext('2d');
-            const cx = 90, cy = 90, r = 70;
+            const cx = 95, cy = 95, r = 75;
             
-            ctx.clearRect(0, 0, 180, 180);
+            ctx.clearRect(0, 0, 190, 190);
+            
+            // Outer Dial
+            ctx.beginPath();
+            ctx.arc(cx, cy, r, 0.75 * Math.PI, 2.25 * Math.PI);
+            ctx.strokeStyle = '#222'; ctx.lineWidth = 12; ctx.stroke();
+            
+            // Active Arc
+            const valK = Math.min(value, 15000) / 1000.0;
+            const currAngle = (0.75 + (valK / 15.0) * 1.5) * Math.PI;
+            ctx.beginPath();
+            ctx.arc(cx, cy, r, 0.75 * Math.PI, currAngle);
+            ctx.strokeStyle = '#00FF00'; ctx.lineWidth = 8; ctx.stroke();
+            
+            // Numbers 1 to 15
+            ctx.fillStyle = '#AAA'; ctx.font = '10px Consolas'; ctx.textAlign = 'center';
+            for (let i = 1; i <= 15; i++) {{
+                let a = (0.75 + (i / 15.0) * 1.5) * Math.PI;
+                let tx = cx + Math.cos(a) * (r - 18);
+                let ty = cy + Math.sin(a) * (r - 18);
+                ctx.fillText(i, tx, ty + 3);
+            }}
+            
+            // Center Text
+            ctx.fillStyle = '#FFF'; ctx.font = 'bold 16px Consolas';
+            ctx.fillText(Math.round(value), cx, cy + 20);
+            ctx.fillStyle = '#00FF00'; ctx.font = 'bold 10px Consolas';
+            ctx.fillText("x1000rpm", cx, cy + 35);
+            ctx.fillStyle = '#888'; ctx.font = '9px Consolas';
+            ctx.fillText("TACHOMETER", cx, cy - 25);
+            
+            // Needle
+            ctx.save();
+            ctx.translate(cx, cy);
+            ctx.rotate(currAngle + 0.5 * Math.PI);
+            ctx.beginPath(); ctx.moveTo(-2, 0); ctx.lineTo(0, -r + 12); ctx.lineTo(2, 0);
+            ctx.fillStyle = '#FF2222'; ctx.fill();
+            ctx.restore();
+            
+            ctx.beginPath(); ctx.arc(cx, cy, 5, 0, 2 * Math.PI); ctx.fillStyle = '#FFF'; ctx.fill();
+        }}
+
+        // SPEEDOMETER (0-200 KM/H)
+        function drawSpeedometer(value) {{
+            const canvas = document.getElementById('speedoCanvas');
+            if (!canvas) return;
+            const ctx = canvas.getContext('2d');
+            const cx = 95, cy = 95, r = 75;
+            
+            ctx.clearRect(0, 0, 190, 190);
             
             ctx.beginPath();
             ctx.arc(cx, cy, r, 0.75 * Math.PI, 2.25 * Math.PI);
-            ctx.strokeStyle = '#222';
-            ctx.lineWidth = 10;
-            ctx.stroke();
+            ctx.strokeStyle = '#222'; ctx.lineWidth = 12; ctx.stroke();
             
-            const currAngle = (0.75 + (Math.min(value, maxVal) / maxVal) * 1.5) * Math.PI;
+            const currAngle = (0.75 + (Math.min(value, 200) / 200.0) * 1.5) * Math.PI;
             ctx.beginPath();
             ctx.arc(cx, cy, r, 0.75 * Math.PI, currAngle);
-            ctx.strokeStyle = isRpm ? '#00FF00' : '#0088FF';
-            ctx.lineWidth = 6;
-            ctx.stroke();
+            ctx.strokeStyle = '#0088FF'; ctx.lineWidth = 8; ctx.stroke();
             
-            ctx.fillStyle = '#FFF';
-            ctx.font = 'bold 16px Consolas';
-            ctx.textAlign = 'center';
-            ctx.fillText(Math.round(value), cx, cy + 25);
-            ctx.fillStyle = '#888';
-            ctx.font = '9px Consolas';
-            ctx.fillText(unit, cx, cy + 38);
+            // Numbers 0 to 200 (Step 20)
+            ctx.fillStyle = '#AAA'; ctx.font = '9px Consolas'; ctx.textAlign = 'center';
+            for (let i = 0; i <= 10; i++) {{
+                let valNum = i * 20;
+                let a = (0.75 + (i / 10.0) * 1.5) * Math.PI;
+                let tx = cx + Math.cos(a) * (r - 18);
+                let ty = cy + Math.sin(a) * (r - 18);
+                ctx.fillText(valNum, tx, ty + 3);
+            }}
+            
+            ctx.fillStyle = '#FFF'; ctx.font = 'bold 16px Consolas';
+            ctx.fillText(Math.round(value), cx, cy + 20);
+            ctx.fillStyle = '#0088FF'; ctx.font = 'bold 10px Consolas';
+            ctx.fillText("km/jam", cx, cy + 35);
+            ctx.fillStyle = '#888'; ctx.font = '9px Consolas';
+            ctx.fillText("SPEEDOMETER", cx, cy - 25);
             
             ctx.save();
             ctx.translate(cx, cy);
             ctx.rotate(currAngle + 0.5 * Math.PI);
-            ctx.beginPath();
-            ctx.moveTo(-2, 0);
-            ctx.lineTo(0, -r + 10);
-            ctx.lineTo(2, 0);
-            ctx.fillStyle = '#FF2222';
-            ctx.fill();
+            ctx.beginPath(); ctx.moveTo(-2, 0); ctx.lineTo(0, -r + 12); ctx.lineTo(2, 0);
+            ctx.fillStyle = '#FF2222'; ctx.fill();
             ctx.restore();
             
-            ctx.beginPath();
-            ctx.arc(cx, cy, 5, 0, 2 * Math.PI);
-            ctx.fillStyle = '#FFF';
-            ctx.fill();
+            ctx.beginPath(); ctx.arc(cx, cy, 5, 0, 2 * Math.PI); ctx.fillStyle = '#FFF'; ctx.fill();
         }}
 
-        function drawDynoChart(visibleLen, showBadges) {{
+        // MULTI-RUN GRAPH CANVAS (PRESERVES PREVIOUS RUNS)
+        function drawMultiRunChart(activeRunProgressLen) {{
             const canvas = document.getElementById('graphCanvas');
             if (!canvas) return;
             const ctx = canvas.getContext('2d');
@@ -371,8 +408,15 @@ def render_full_dyno_studio_v7(rpms, hps, tqs, afrs, max_hp, rpm_hp, max_tq, rpm
                 ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(w - padR, y); ctx.stroke();
             }}
             
-            const maxHpAxis = Math.ceil(maxHp * 1.25);
-            const maxTqAxis = Math.ceil(maxTq * 1.25);
+            // Dynamic Axis Calculation across all runs
+            let globalMaxHp = 20, globalMaxTq = 20;
+            historyRuns.forEach(r => {{
+                if (r.max_hp > globalMaxHp) globalMaxHp = r.max_hp;
+                if (r.max_tq > globalMaxTq) globalMaxTq = r.max_tq;
+            }});
+            
+            const maxHpAxis = Math.ceil(globalMaxHp * 1.25);
+            const maxTqAxis = Math.ceil(globalMaxTq * 1.25);
             const minRpmAxis = 1000;
             const maxRpmAxis = limitRpm;
             
@@ -390,62 +434,77 @@ def render_full_dyno_studio_v7(rpms, hps, tqs, afrs, max_hp, rpm_hp, max_tq, rpm
             function getYTq(tq) {{ return padT + mainGraphH - (tq / maxTqAxis) * mainGraphH; }}
             function getYAfr(afr) {{ return afrTopY + afrGraphH - ((afr - 10.0) / 8.0) * afrGraphH; }}
             
-            const drawLen = Math.min(visibleLen, rpms.length);
+            const hpColors = ["#FFFF00", "#00FF00", "#FF00FF", "#00FFFF"];
+            const tqColors = ["#0088FF", "#FF8800", "#FFAA00", "#FF3333"];
             
-            if (drawLen > 1) {{
-                // Torque Line (Blue)
-                ctx.beginPath(); ctx.strokeStyle = '#0088FF'; ctx.lineWidth = 3;
-                for (let i = 0; i < drawLen; i++) {{
-                    let x = getX(rpms[i]), y = getYTq(tqs[i]);
-                    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
-                }}
-                ctx.stroke();
+            historyRuns.forEach((run, idx) => {{
+                const hpColor = hpColors[idx % hpColors.length];
+                const tqColor = tqColors[idx % tqColors.length];
                 
-                // HP Line (Yellow)
-                ctx.beginPath(); ctx.strokeStyle = '#FFFF00'; ctx.lineWidth = 3;
-                for (let i = 0; i < drawLen; i++) {{
-                    let x = getX(rpms[i]), y = getYHp(hps[i]);
-                    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+                let drawLen = run.rpms.length;
+                if (idx === historyRuns.length - 1 && activeRunProgressLen !== null) {{
+                    drawLen = Math.min(activeRunProgressLen, run.rpms.length);
                 }}
-                ctx.stroke();
                 
-                // AFR Line (Green)
-                ctx.beginPath(); ctx.strokeStyle = '#00FF00'; ctx.lineWidth = 2;
-                for (let i = 0; i < drawLen; i++) {{
-                    let x = getX(rpms[i]), y = getYAfr(afrs[i]);
-                    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+                if (drawLen > 1) {{
+                    // Torque Line
+                    ctx.beginPath(); ctx.strokeStyle = tqColor; ctx.lineWidth = 2.5;
+                    for (let i = 0; i < drawLen; i++) {{
+                        let x = getX(run.rpms[i]), y = getYTq(run.tqs[i]);
+                        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+                    }}
+                    ctx.stroke();
+                    
+                    // HP Line
+                    ctx.beginPath(); ctx.strokeStyle = hpColor; ctx.lineWidth = 2.5;
+                    for (let i = 0; i < drawLen; i++) {{
+                        let x = getX(run.rpms[i]), y = getYHp(run.hps[i]);
+                        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+                    }}
+                    ctx.stroke();
+                    
+                    // AFR Line
+                    ctx.beginPath(); ctx.strokeStyle = '#00FF00'; ctx.lineWidth = 1.5;
+                    for (let i = 0; i < drawLen; i++) {{
+                        let x = getX(run.rpms[i]), y = getYAfr(run.afrs[i]);
+                        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+                    }}
+                    ctx.stroke();
                 }}
-                ctx.stroke();
-            }}
-            
-            // PEAK NOTIFICATION BADGES
-            if (showBadges) {{
-                // Peak HP
-                let xHp = getX(rpmHp), yHp = getYHp(maxHp);
-                ctx.fillStyle = '#FFFF00';
-                ctx.fillRect(xHp - 75, yHp - 32, 150, 22);
-                ctx.fillStyle = '#000'; ctx.font = 'bold 10px Consolas'; ctx.textAlign = 'center';
-                ctx.fillText("⚡ PEAK HP: " + maxHp.toFixed(2) + " @" + rpmHp, xHp, yHp - 18);
-                ctx.beginPath(); ctx.arc(xHp, yHp, 5, 0, 2 * Math.PI); ctx.fillStyle = '#FFFF00'; ctx.fill();
                 
-                // Peak Torque
-                let xTq = getX(rpmTq), yTq = getYTq(maxTq);
-                ctx.fillStyle = '#0088FF';
-                ctx.fillRect(xTq - 75, yTq + 10, 150, 22);
-                ctx.fillStyle = '#FFF'; ctx.font = 'bold 10px Consolas'; ctx.textAlign = 'center';
-                ctx.fillText("🔧 PEAK NM: " + maxTq.toFixed(2) + " @" + rpmTq, xTq, yTq + 24);
-                ctx.beginPath(); ctx.arc(xTq, yTq, 5, 0, 2 * Math.PI); ctx.fillStyle = '#0088FF'; ctx.fill();
-            }}
+                // Show Badges for Latest Run
+                if (idx === historyRuns.length - 1 && (activeRunProgressLen === null || activeRunProgressLen >= run.rpms.length)) {{
+                    let xHp = getX(run.rpm_hp), yHp = getYHp(run.max_hp);
+                    ctx.fillStyle = hpColor;
+                    ctx.fillRect(xHp - 70, yHp - 30, 140, 20);
+                    ctx.fillStyle = '#000'; ctx.font = 'bold 10px Consolas'; ctx.textAlign = 'center';
+                    ctx.fillText("⚡ PEAK HP: " + run.max_hp.toFixed(2) + " @" + run.rpm_hp, xHp, yHp - 16);
+                    ctx.beginPath(); ctx.arc(xHp, yHp, 4, 0, 2 * Math.PI); ctx.fillStyle = hpColor; ctx.fill();
+                    
+                    let xTq = getX(run.rpm_tq), yTq = getYTq(run.max_tq);
+                    ctx.fillStyle = tqColor;
+                    ctx.fillRect(xTq - 70, yTq + 10, 140, 20);
+                    ctx.fillStyle = '#FFF'; ctx.font = 'bold 10px Consolas'; ctx.textAlign = 'center';
+                    ctx.fillText("🔧 PEAK NM: " + run.max_tq.toFixed(2) + " @" + run.rpm_tq, xTq, yTq + 24);
+                    ctx.beginPath(); ctx.arc(xTq, yTq, 4, 0, 2 * Math.PI); ctx.fillStyle = tqColor; ctx.fill();
+                }}
+            }});
         }}
 
+        // INITIAL STANDBY DISPLAY
         window.onload = function() {{
-            drawGauge('tachoCanvas', 1200, limitRpm, 'RPM', true);
-            drawGauge('speedoCanvas', 0, topSpeed, 'KM/H', false);
-            drawDynoChart(rpms.length, true);
+            drawTachometer(0);
+            drawSpeedometer(0);
+            drawMultiRunChart(null);
+            
+            if (autoStart && historyRuns.length > 0) {{
+                startDyno20sCycle();
+            }}
         }};
 
-        function startFullDynoCycle() {{
-            document.getElementById('dynoStatus').innerText = "RUNNING (20s)...";
+        // MASTER 20s RUN CYCLE
+        function startDyno20sCycle() {{
+            document.getElementById('dynoStatus').innerText = "RUNNING SWEEP (20s)...";
             document.getElementById('dynoStatus').style.color = "#FFFF00";
             
             const AudioContext = window.AudioContext || window.webkitAudioContext;
@@ -462,9 +521,14 @@ def render_full_dyno_studio_v7(rpms, hps, tqs, afrs, max_hp, rpm_hp, max_tq, rpm
             const idleFreq = (engineType === 'twin') ? 50 : 32;
             const limitFreq = (engineType === 'twin') ? 520 : 270;
             
+            // 0s-5s Idle
             osc.frequency.setValueAtTime(idleFreq, now);
             osc.frequency.setValueAtTime(idleFreq, now + 5.0);
+            
+            // 5s-15s Sweep
             osc.frequency.exponentialRampToValueAtTime(limitFreq, now + 15.0);
+            
+            // 15s-20s Decel
             osc.frequency.exponentialRampToValueAtTime(idleFreq, now + 20.0);
             
             gain.gain.setValueAtTime(0.01, now);
@@ -482,41 +546,50 @@ def render_full_dyno_studio_v7(rpms, hps, tqs, afrs, max_hp, rpm_hp, max_tq, rpm
             osc.connect(filter); filter.connect(gain); gain.connect(audioCtx.destination);
             osc.start(now); osc.stop(now + totalDur);
             
+            const activeRun = historyRuns[historyRuns.length - 1];
             const animStart = performance.now();
+            
             function frameLoop() {{
                 const elapsed = (performance.now() - animStart) / 1000.0;
-                let currentRpm = 1200;
+                let currentRpm = 0;
                 let currentSpeed = 0;
                 let visiblePoints = 0;
-                let isFinished = false;
                 
                 if (elapsed <= 5.0) {{
-                    currentRpm = 1200 + Math.sin(elapsed * 6) * 35;
+                    // 0-5s: Idle 1200 RPM
+                    currentRpm = 1200 + Math.sin(elapsed * 6) * 30;
                     currentSpeed = 0;
                     visiblePoints = 0;
                 }} else if (elapsed <= 15.0) {{
+                    // 5-15s: 10s Ramp Sweep
                     const progress = (elapsed - 5.0) / 10.0;
                     currentRpm = 1200 + progress * (limitRpm - 1200);
                     currentSpeed = progress * topSpeed;
-                    visiblePoints = Math.floor(progress * rpms.length);
+                    visiblePoints = Math.floor(progress * activeRun.rpms.length);
                 }} else if (elapsed <= 20.0) {{
+                    // 15-20s: 5s Decel Idle
                     const decelProg = (elapsed - 15.0) / 5.0;
                     currentRpm = limitRpm - decelProg * (limitRpm - 1200);
                     currentSpeed = topSpeed * (1.0 - decelProg);
-                    visiblePoints = rpms.length;
-                    isFinished = true;
+                    visiblePoints = activeRun.rpms.length;
                 }} else {{
-                    currentRpm = 1200; currentSpeed = 0; visiblePoints = rpms.length; isFinished = true;
+                    currentRpm = 0; // Return Standby
+                    currentSpeed = 0;
+                    visiblePoints = activeRun.rpms.length;
                     document.getElementById('dynoStatus').innerText = "COMPLETED";
                     document.getElementById('dynoStatus').style.color = "#00FF66";
                 }}
                 
-                drawGauge('tachoCanvas', currentRpm, limitRpm, 'RPM', true);
-                drawGauge('speedoCanvas', currentSpeed, topSpeed, 'KM/H', false);
-                drawDynoChart(visiblePoints, isFinished);
+                drawTachometer(currentRpm);
+                drawSpeedometer(currentSpeed);
+                drawMultiRunChart(visiblePoints);
                 
                 if (elapsed < totalDur) {{
                     requestAnimationFrame(frameLoop);
+                }} else {{
+                    drawTachometer(0);
+                    drawSpeedometer(0);
+                    drawMultiRunChart(null);
                 }}
             }}
             requestAnimationFrame(frameLoop);
@@ -542,7 +615,9 @@ st.markdown(f"""
 </div>
 """, unsafe_allow_html=True)
 
-if run_btn:
+auto_start_run = False
+
+if st.session_state.run_trigger:
     rpms, hps, tqs, afrs, max_hp, rpm_hp, max_tq, rpm_tq, cc_calc, cr_calc, pspeed, gsin, gsout = calculate_smooth_dyno_curve(
         std, in_bore, in_stroke, in_vhead, in_v_in, in_v_out, in_venturi, in_afr, std['limit_std']
     )
@@ -567,18 +642,26 @@ if run_btn:
         "venturi": in_venturi,
         "rpms": rpms, "hps": hps, "tqs": tqs, "afrs": afrs
     })
+    
+    auto_start_run = True
+    st.session_state.run_trigger = False
+
+# Render Studio Canvas Component
+latest_run = st.session_state.history[-1] if st.session_state.history else None
+
+render_full_dyno_studio_v8(
+    st.session_state.history,
+    auto_start_run,
+    latest_run,
+    std.get('top_speed', 140.0),
+    std['limit_std'],
+    std.get('type', 'single_small')
+)
 
 if st.session_state.history:
     latest = st.session_state.history[-1]
     
-    # 1. Render Full Dyno Studio Canvas (Live 60 FPS + Audio)
-    render_full_dyno_studio_v7(
-        latest['rpms'], latest['hps'], latest['tqs'], latest['afrs'],
-        latest['Max_Wheel_HP'], latest['RPM_HP'], latest['Max_Nm'], latest['RPM_Nm'],
-        std.get('top_speed', 140.0), std['limit_std'], std.get('type', 'single_small'), latest['Run']
-    )
-    
-    # 2. Performance Summary Table
+    # Performance Summary Table
     st.divider()
     st.markdown("### 📋 PERFORMANCE RUN SUMMARY TABLE")
     df_h = pd.DataFrame(st.session_state.history)
@@ -589,7 +672,7 @@ if st.session_state.history:
         "Max_Wheel_HP": "{:.2f}", "Max_Nm": "{:.2f}"
     }), use_container_width=True, hide_index=True)
 
-    # 3. EXPERT ENGINE ANALYSIS & GRAHAM BELL RECOMMENDATIONS
+    # EXPERT ENGINE ANALYSIS & GRAHAM BELL RECOMMENDATIONS
     st.divider()
     st.markdown("## 🏁 EXPERT ENGINE ANALYSIS (A. GRAHAM BELL PRINCIPLES)")
     
@@ -649,4 +732,4 @@ if st.session_state.history:
         for p in parts:
             st.write(p)
 
-st.caption("HIAR AXIS VIRTUAL DYNO v7.0 — Advanced Engine Tuning Engine & Graham Bell Diagnostics.")
+st.caption("HIAR AXIS VIRTUAL DYNO v8.0 — Full Dynamic Analog Tacho & Multi-Run Canvas System.")
