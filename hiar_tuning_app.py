@@ -9,7 +9,7 @@ import streamlit.components.v1 as components
 # 1. PAGE CONFIG & PROFESSIONAL DYNO CSS
 # ==========================================
 st.set_page_config(
-    page_title="PENDAWA AXIS VIRTUAL DYNO v10",
+    page_title="PENDAWA AXIS VIRTUAL DYNO v11",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -142,42 +142,42 @@ if 'run_trigger' not in st.session_state:
     st.session_state.run_trigger = False
 
 # ==========================================
-# 3. DYNAMIC THERMODYNAMIC ENGINE (A. GRAHAM BELL MODEL)
+# 3. ACCURATE THERMODYNAMIC ENGINE (FIXED UNITS)
 # ==========================================
 def calculate_smooth_dyno_curve(std_spec, in_bore, in_stroke, in_vhead, in_v_in, in_v_out, in_venturi, in_dur_in, in_dur_out, in_afr, limit_rpm):
     cc_calc = float((0.785398 * float(in_bore)**2 * float(in_stroke)) / 1000.0)
     cr_calc = float((cc_calc + float(in_vhead)) / float(in_vhead))
     
+    std_cc = (std_spec['bore']**2 * 0.785398 * std_spec['stroke']) / 1000.0
+    cc_ratio = cc_calc / std_cc
+    
     cvt_loss = float(std_spec.get('cvt_loss', 0.18))
     
-    # 1. DYNAMIC POWERBAND SHIFT CALCULATIONS
-    valve_area_ratio = (in_v_in / in_bore)**2
+    # Baseline Crank Torque & Wheel Torque Scaling
+    crank_tq_base = float(std_spec['torque_crank_std']) * cc_ratio
+    wheel_tq_base = crank_tq_base * (1.0 - cvt_loss)
     
-    # Optimum Intake Ramming Velocity Peak RPM (~82 m/s)
+    # Compression Ratio Thermal Adjustment
+    cr_std = (std_cc + std_spec['v_head']) / std_spec['v_head']
+    cr_diff = cr_calc - cr_std
+    
+    if cr_calc > 14.5:
+        # Severe Knocking Penalty
+        thermal_factor = (1.0 + cr_diff * 0.015) - ((cr_calc - 14.5) * 0.15)
+    else:
+        thermal_factor = 1.0 + cr_diff * 0.015
+        
+    # Dynamic Powerband Peak RPM Shift
+    valve_area_ratio = (in_v_in / in_bore)**2
     rpm_tq_dynamic = (82.0 * 60000.0) / (2.0 * in_stroke / valve_area_ratio)
     
-    # Camshaft Duration Shift: +10 deg duration shifts torque peak +350 RPM higher
     cam_dur_avg = (float(in_dur_in) + float(in_dur_out)) / 2.0
     cam_shift_rpm = (cam_dur_avg - 240.0) * 35.0
     
-    # Throttle Restriction Shift
     tb_ratio = in_venturi / in_v_in
-    tb_shift_rpm = - (0.85 - tb_ratio) * 3500.0 if tb_ratio < 0.85 else 0.0
+    tb_shift = - (0.85 - tb_ratio) * 3500.0 if tb_ratio < 0.85 else 0.0
     
-    # Final Dynamic Peak RPMs
-    final_rpm_tq_peak = float(np.clip(rpm_tq_dynamic + cam_shift_rpm + tb_shift_rpm, 3500.0, limit_rpm - 2000.0))
-    final_rpm_hp_peak = float(np.clip(final_rpm_tq_peak + 1800.0 + (cam_dur_avg - 240.0) * 18.0, final_rpm_tq_peak + 1200.0, limit_rpm - 600.0))
-    
-    # 2. THERMAL EFFICIENCY & DETONATION PENALTY
-    thermal_eff = 1.0
-    if cr_calc > 14.5:
-        # Severe knocking penalty on extreme CR
-        thermal_eff = 1.0 - ((cr_calc - 14.5) * 0.15)
-    elif cr_calc > 13.0:
-        thermal_eff = 1.0 - ((cr_calc - 13.0) * 0.03)
-        
-    std_cc = (std_spec['bore']**2 * 0.785398 * std_spec['stroke']) / 1000.0
-    bmep_bar = (float(std_spec['hp_crank_std']) * 120000.0) / (std_cc * std_spec['peak_rpm_hp'] * 0.85)
+    final_rpm_tq_peak = float(np.clip(rpm_tq_dynamic + cam_shift_rpm + tb_shift, 3500.0, limit_rpm - 2000.0))
     
     raw_rpms = np.arange(1000, int(limit_rpm) + 100, 100)
     rpms = [int(r) for r in raw_rpms]
@@ -188,25 +188,24 @@ def calculate_smooth_dyno_curve(std_spec, in_bore, in_stroke, in_vhead, in_v_in,
         pspeed_r = (2.0 * in_stroke * r) / 60000.0
         gsin_r = ((in_bore / in_v_in)**2) * pspeed_r
         
-        # Volumetric Efficiency Curve
+        # Volumetric Efficiency Shape Curve
         if r < 1500:
-            ve = 0.25 * (r / 1500.0)
+            ve_shape = 0.25 * (r / 1500.0)
         elif r <= final_rpm_tq_peak:
-            ve = 0.40 + 0.60 * math.exp(-((r - final_rpm_tq_peak) / 3600.0)**2)
+            ve_shape = 0.45 + 0.55 * math.exp(-((r - final_rpm_tq_peak) / 3600.0)**2)
         else:
-            ve = 0.40 + 0.60 * math.exp(-((r - final_rpm_tq_peak) / 2200.0)**2)
+            ve_shape = 0.45 + 0.55 * math.exp(-((r - final_rpm_tq_peak) / 2200.0)**2)
             
         # CHOKE FLOW PENALTY (Spek Ngaco / Klep kekecilan)
+        choke_factor = 1.0
         if gsin_r > 125.0:
-            ve *= (125.0 / gsin_r)**2.2
+            choke_factor = (125.0 / gsin_r)**2.2
         elif gsin_r > 108.0:
-            ve *= (108.0 / gsin_r)**1.2
+            choke_factor = (108.0 / gsin_r)**1.2
             
         afr_mod = 1.0 - abs(float(in_afr) - 13.0) * 0.035
         
-        crank_tq = (bmep_bar * cc_calc * ve * thermal_eff * afr_mod) / (2.0 * math.pi * 10.0)
-        wheel_tq = crank_tq * (1.0 - cvt_loss)
-        
+        wheel_tq = wheel_tq_base * ve_shape * choke_factor * thermal_factor * afr_mod
         hp = (wheel_tq * r) / 7023.5 if r > 0 else 0.0
         afr_val = float(in_afr) + 0.2 * math.sin(r / 800.0)
         
@@ -301,9 +300,9 @@ with st.sidebar:
         st.rerun()
 
 # ==========================================
-# 5. STUDIO CANVAS COMPONENT WITH GRIDLINES & WATERMARK (v10.0)
+# 5. STUDIO CANVAS COMPONENT WITH GAUGES NOTES (v11.0)
 # ==========================================
-def render_full_dyno_studio_v10(history_list, auto_start, current_run_model_name, top_speed, limit_rpm, engine_type):
+def render_full_dyno_studio_v11(history_list, auto_start, current_run_model_name, top_speed, limit_rpm, engine_type):
     
     history_payload = []
     for h in history_list:
@@ -344,17 +343,19 @@ def render_full_dyno_studio_v10(history_list, auto_start, current_run_model_name
                 </div>
             </div>
 
-            <!-- ANALOG GAUGES -->
+            <!-- ANALOG GAUGES WITH MAX READOUT NOTES -->
             <div class="gauges-row">
                 <div style="text-align:center;">
                     <canvas id="tachoCanvas" width="190" height="190"></canvas>
+                    <div id="tachoNote" style="color:#00FF00; font-weight:bold; font-size:0.8rem; margin-top:4px;">MAX RPM: -- RPM</div>
                 </div>
                 <div style="text-align:center;">
                     <canvas id="speedoCanvas" width="190" height="190"></canvas>
+                    <div id="speedoNote" style="color:#0088FF; font-weight:bold; font-size:0.8rem; margin-top:4px;">MAX SPEED: -- KM/H</div>
                 </div>
             </div>
 
-            <!-- DYNAMIC GRAPH CANVAS WITH GRIDLINES & WATERMARK -->
+            <!-- DYNAMIC GRAPH CANVAS -->
             <div style="position:relative; width:100%;">
                 <canvas id="graphCanvas" width="850" height="420" style="width:100%; background-color:#050505; border:1px solid #333; border-radius:4px;"></canvas>
             </div>
@@ -467,7 +468,7 @@ def render_full_dyno_studio_v10(history_list, auto_start, current_run_model_name
             const afrGraphH = 70;
             const afrTopY = padT + mainGraphH + 20;
             
-            // BACKGROUND ENGINE WATERMARK
+            // WATERMARK
             ctx.fillStyle = "rgba(255, 255, 255, 0.05)";
             ctx.font = "bold 22px Consolas";
             ctx.textAlign = "center";
@@ -489,7 +490,6 @@ def render_full_dyno_studio_v10(history_list, auto_start, current_run_model_name
                 let x = padL + ((rVal - minRpmAxis) / (maxRpmAxis - minRpmAxis)) * (w - padL - padR);
                 ctx.beginPath(); ctx.moveTo(x, padT); ctx.lineTo(x, padT + mainGraphH); ctx.stroke();
                 ctx.beginPath(); ctx.moveTo(x, afrTopY); ctx.lineTo(x, afrTopY + afrGraphH); ctx.stroke();
-                
                 ctx.fillStyle = '#666'; ctx.font = '9px Consolas'; ctx.textAlign = 'center';
                 ctx.fillText(rVal, x, padT + mainGraphH + 12);
             }}
@@ -576,6 +576,12 @@ def render_full_dyno_studio_v10(history_list, auto_start, current_run_model_name
             drawSpeedometer(0);
             drawMultiRunChart(null);
             
+            if (historyRuns.length > 0) {{
+                let lastRun = historyRuns[historyRuns.length - 1];
+                document.getElementById('tachoNote').innerText = "MAX RPM: " + lastRun.rpms[lastRun.rpms.length - 1] + " RPM";
+                document.getElementById('speedoNote').innerText = "MAX SPEED: " + topSpeed + " KM/H";
+            }}
+            
             if (autoStart && historyRuns.length > 0) {{
                 startDyno20sCycle();
             }}
@@ -648,6 +654,9 @@ def render_full_dyno_studio_v10(history_list, auto_start, current_run_model_name
                     visiblePoints = activeRun.rpms.length;
                     document.getElementById('dynoStatus').innerText = "COMPLETED";
                     document.getElementById('dynoStatus').style.color = "#00FF66";
+                    
+                    document.getElementById('tachoNote').innerText = "MAX RPM: " + limitRpm + " RPM";
+                    document.getElementById('speedoNote').innerText = "MAX SPEED: " + topSpeed + " KM/H";
                 }}
                 
                 drawTachometer(currentRpm);
@@ -668,7 +677,7 @@ def render_full_dyno_studio_v10(history_list, auto_start, current_run_model_name
     </body>
     </html>
     """
-    components.html(component_code, height=680)
+    components.html(component_code, height=710)
 
 # ==========================================
 # 6. MAIN EXECUTION & EXPERT ANALYSIS
@@ -718,7 +727,7 @@ if st.session_state.run_trigger:
 
 latest_run = st.session_state.history[-1] if st.session_state.history else None
 
-render_full_dyno_studio_v10(
+render_full_dyno_studio_v11(
     st.session_state.history,
     auto_start_run,
     selected_model,
@@ -727,6 +736,7 @@ render_full_dyno_studio_v10(
     std.get('type', 'single_small')
 )
 
+# SHOW TABLES & ANALYSIS ONLY WHEN RUN HAS BEEN EXECUTED
 if st.session_state.history:
     latest = st.session_state.history[-1]
     
@@ -801,4 +811,4 @@ if st.session_state.history:
         for p in parts:
             st.write(p)
 
-st.caption("PENDAWA AXIS VIRTUAL DYNO v10.0 — Advanced Dynamic Engine Tuning System.")
+st.caption("PENDAWA AXIS VIRTUAL DYNO v11.0 — Corrected Mechanics & Accurate Powerband System.")
