@@ -57,6 +57,10 @@ st.markdown("""
 
     .stock-badge { background-color: #00FF66; color: #000; font-size: 0.75rem; font-weight: bold; padding: 2px 6px; border-radius: 3px; }
     .tuned-badge { background-color: #FF9900; color: #000; font-size: 0.75rem; font-weight: bold; padding: 2px 6px; border-radius: 3px; }
+    
+    /* Mengurangi jarak padding default sidebar text input untuk menghemat ruang vertikal */
+    [data-testid="stSidebar"] div.stNumberInput { margin-bottom: -10px; }
+    [data-testid="stSidebar"] div.stSelectbox { margin-bottom: -10px; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -248,30 +252,45 @@ with st.sidebar:
     if "selected_merk" not in st.session_state:
         st.session_state.selected_merk = list(DATABASE_REF.keys())[0]
         
-    selected_merk = st.selectbox("Manufacturer", list(DATABASE_REF.keys()), key="selected_merk")
-    
-    models_for_merk = list(DATABASE_REF[selected_merk].keys())
-    selected_model = st.selectbox("Engine Model", models_for_merk, key=f"model_select_{selected_merk}")
-    
+    col_m1, col_m2 = st.columns(2)
+    with col_m1:
+        selected_merk = st.selectbox("Manufacturer", list(DATABASE_REF.keys()), key="selected_merk")
+    with col_m2:
+        models_for_merk = list(DATABASE_REF[selected_merk].keys())
+        selected_model = st.selectbox("Engine Model", models_for_merk, key=f"model_select_{selected_merk}")
+        
     std = DATABASE_REF[selected_merk][selected_model]
+    
+    col_t1, col_t2 = st.columns(2)
+    with col_t1:
+        in_klep = st.selectbox("Jumlah Klep", [4, 2], index=0 if float(std['valve_in']) > 25 else 1)
+    with col_t2:
+        in_fuel = st.selectbox("Sistem Suplai", ["Injeksi", "Karburator"])
+
     st.divider()
 
     st.markdown("### ⚙️ MECHANIC TUNING PARAMETERS")
+    
+    # Kalkulasi standar kompresi untuk default form
+    std_cc_init = (0.785398 * float(std['bore'])**2 * float(std['stroke'])) / 1000.0
+    std_cr_init = (std_cc_init + float(std['v_head'])) / float(std['v_head'])
+    
     col_s1, col_s2 = st.columns(2)
     with col_s1:
         in_bore = st.number_input("Bore (mm)", value=float(std['bore']), step=0.5)
-        in_vhead = st.number_input("Vol Head (cc)", value=float(std['v_head']), step=0.1)
+        in_cr = st.number_input("Kompresi (:1)", value=float(round(std_cr_init, 2)), step=0.1)
     with col_s2:
         in_stroke = st.number_input("Stroke (mm)", value=float(std['stroke']), step=0.5)
         in_rpm = st.number_input("Limit RPM", value=int(std['limit_std']), step=250)
 
     cc_real = (0.785398 * float(in_bore)**2 * float(in_stroke)) / 1000.0
-    cr_real = (cc_real + float(in_vhead)) / float(in_vhead)
+    in_vhead = cc_real / (in_cr - 1.0) if in_cr > 1.0 else 10.0
+    cr_real = in_cr
     
     st.markdown(f"""
     <div class="cc-box">
-        <div class="cc-title">DISPLACEMENT & COMPRESSION</div>
-        <div class="cc-value">{cc_real:.2f} cc &nbsp;|&nbsp; {cr_real:.2f}:1</div>
+        <div class="cc-title">DISPLACEMENT & VOL HEAD</div>
+        <div class="cc-value">{cc_real:.2f} cc &nbsp;|&nbsp; {in_vhead:.2f} cc</div>
     </div>
     """, unsafe_allow_html=True)
 
@@ -344,7 +363,7 @@ def render_full_dyno_studio_v16(history_list, auto_start, current_run_model_name
             body {{ background-color: #0A0A0A; color: #FFF; font-family: Consolas, monospace; margin: 0; padding: 10px; }}
             .studio-card {{ border: 2px solid #222; border-radius: 8px; padding: 12px; background-color: #0D0D0D; }}
             .top-bar {{ display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }}
-            .gauges-row {{ display: flex; justify-content: center; gap: 30px; background-color: #111; padding: 10px; border-radius: 6px; border: 1px solid #333; margin-bottom: 12px; }}
+            .gauges-row {{ display: flex; justify-content: center; gap: 15px; background-color: #111; padding: 10px; border-radius: 6px; border: 1px solid #333; margin-bottom: 12px; }}
         </style>
     </head>
     <body>
@@ -364,6 +383,10 @@ def render_full_dyno_studio_v16(history_list, auto_start, current_run_model_name
                 <div style="text-align:center;">
                     <canvas id="speedoCanvas" width="190" height="190"></canvas>
                     <div id="speedoNote" style="color:#0088FF; font-weight:bold; font-size:0.8rem; margin-top:4px;">MAX SPEED: -- KM/H</div>
+                </div>
+                <div style="text-align:center;">
+                    <canvas id="afrCanvas" width="190" height="190"></canvas>
+                    <div id="afrNote" style="color:#FF9900; font-weight:bold; font-size:0.8rem; margin-top:4px;">AFR: --</div>
                 </div>
             </div>
 
@@ -456,6 +479,55 @@ def render_full_dyno_studio_v16(history_list, auto_start, current_run_model_name
             ctx.fillText("km/jam", cx, cy + 35);
             ctx.fillStyle = '#888'; ctx.font = '9px Consolas';
             ctx.fillText("SPEEDOMETER", cx, cy - 25);
+            
+            ctx.save();
+            ctx.translate(cx, cy);
+            ctx.rotate(currAngle + 0.5 * Math.PI);
+            ctx.beginPath(); ctx.moveTo(-2, 0); ctx.lineTo(0, -r + 12); ctx.lineTo(2, 0);
+            ctx.fillStyle = '#FF2222'; ctx.fill();
+            ctx.restore();
+            
+            ctx.beginPath(); ctx.arc(cx, cy, 5, 0, 2 * Math.PI); ctx.fillStyle = '#FFF'; ctx.fill();
+        }}
+        
+        function drawAfrMeter(value) {{
+            const canvas = document.getElementById('afrCanvas');
+            if (!canvas) return;
+            const ctx = canvas.getContext('2d');
+            const cx = 95, cy = 95, r = 75;
+            
+            ctx.clearRect(0, 0, 190, 190);
+            
+            ctx.beginPath();
+            ctx.arc(cx, cy, r, 0.75 * Math.PI, 2.25 * Math.PI);
+            ctx.strokeStyle = '#222'; ctx.lineWidth = 12; ctx.stroke();
+            
+            const minAfr = 10;
+            const maxAfr = 20;
+            let clampedVal = Math.max(minAfr, Math.min(value, maxAfr));
+            let pct = (clampedVal - minAfr) / (maxAfr - minAfr);
+            if(isNaN(pct)) pct = 0;
+            
+            const currAngle = (0.75 + pct * 1.5) * Math.PI;
+            ctx.beginPath();
+            ctx.arc(cx, cy, r, 0.75 * Math.PI, currAngle);
+            ctx.strokeStyle = '#FF9900'; ctx.lineWidth = 8; ctx.stroke();
+            
+            ctx.fillStyle = '#AAA'; ctx.font = '9px Consolas'; ctx.textAlign = 'center';
+            for (let i = 0; i <= 5; i++) {{
+                let valNum = 10 + i * 2;
+                let a = (0.75 + (i / 5.0) * 1.5) * Math.PI;
+                let tx = cx + Math.cos(a) * (r - 18);
+                let ty = cy + Math.sin(a) * (r - 18);
+                ctx.fillText(valNum, tx, ty + 3);
+            }}
+            
+            ctx.fillStyle = '#FFF'; ctx.font = 'bold 16px Consolas';
+            ctx.fillText(value.toFixed(1), cx, cy + 20);
+            ctx.fillStyle = '#FF9900'; ctx.font = 'bold 10px Consolas';
+            ctx.fillText("AIR/FUEL", cx, cy + 35);
+            ctx.fillStyle = '#888'; ctx.font = '9px Consolas';
+            ctx.fillText("AFR RATIO", cx, cy - 25);
             
             ctx.save();
             ctx.translate(cx, cy);
@@ -562,7 +634,6 @@ def render_full_dyno_studio_v16(history_list, auto_start, current_run_model_name
                     ctx.stroke();
                 }}
                 
-                // PEAK BADGES FOR LATEST RUN
                 if (idx === historyRuns.length - 1 && (activeRunProgressLen === null || activeRunProgressLen >= run.rpms.length)) {{
                     let xHp = getX(run.rpm_hp), yHp = getYHp(run.max_hp);
                     ctx.fillStyle = hpColor;
@@ -584,10 +655,12 @@ def render_full_dyno_studio_v16(history_list, auto_start, current_run_model_name
         window.onload = function() {{
             drawTachometer(0);
             drawSpeedometer(0);
+            drawAfrMeter(10);
             drawMultiRunChart(null);
             
             document.getElementById('tachoNote').innerText = "MAX RPM: -- RPM";
             document.getElementById('speedoNote').innerText = "MAX SPEED: -- KM/H";
+            document.getElementById('afrNote').innerText = "AFR: --";
             
             if (autoStart && historyRuns.length > 0) {{
                 startDyno20sCycle();
@@ -600,6 +673,7 @@ def render_full_dyno_studio_v16(history_list, auto_start, current_run_model_name
             
             document.getElementById('tachoNote').innerText = "MAX RPM: -- RPM";
             document.getElementById('speedoNote').innerText = "MAX SPEED: -- KM/H";
+            document.getElementById('afrNote').innerText = "AFR: --";
             
             const AudioContext = window.AudioContext || window.webkitAudioContext;
             if (!AudioContext) return;
@@ -642,35 +716,46 @@ def render_full_dyno_studio_v16(history_list, auto_start, current_run_model_name
                 const elapsed = (performance.now() - animStart) / 1000.0;
                 let currentRpm = 0;
                 let currentSpeed = 0;
+                let currentAfr = 14.7;
                 let visiblePoints = 0;
                 
                 if (elapsed <= 5.0) {{
                     currentRpm = 1200 + Math.sin(elapsed * 6) * 30;
                     currentSpeed = 0;
+                    currentAfr = 14.7 + Math.sin(elapsed * 4) * 0.2;
                     visiblePoints = 0;
                 }} else if (elapsed <= 15.0) {{
                     const progress = (elapsed - 5.0) / 10.0;
                     currentRpm = 1200 + progress * (limitRpm - 1200);
                     currentSpeed = progress * topSpeed;
                     visiblePoints = Math.floor(progress * activeRun.rpms.length);
+                    let idx = Math.min(visiblePoints, activeRun.afrs.length - 1);
+                    if(idx >= 0) currentAfr = activeRun.afrs[idx];
                 }} else if (elapsed <= 20.0) {{
                     const decelProg = (elapsed - 15.0) / 5.0;
                     currentRpm = limitRpm - decelProg * (limitRpm - 1200);
                     currentSpeed = topSpeed * (1.0 - decelProg);
                     visiblePoints = activeRun.rpms.length;
+                    currentAfr = 14.7;
                 }} else {{
                     currentRpm = 0;
                     currentSpeed = 0;
                     visiblePoints = activeRun.rpms.length;
+                    
+                    let idx = activeRun.afrs.length - 1;
+                    if(idx >= 0) currentAfr = activeRun.afrs[idx];
+                    
                     document.getElementById('dynoStatus').innerText = "COMPLETED";
                     document.getElementById('dynoStatus').style.color = "#00FF66";
                     
                     document.getElementById('tachoNote').innerText = "MAX RPM: " + limitRpm + " RPM";
                     document.getElementById('speedoNote').innerText = "MAX SPEED: " + topSpeed.toFixed(1) + " KM/H";
+                    document.getElementById('afrNote').innerText = "AFR: " + currentAfr.toFixed(2);
                 }}
                 
                 drawTachometer(currentRpm);
                 drawSpeedometer(currentSpeed);
+                drawAfrMeter(currentAfr);
                 drawMultiRunChart(visiblePoints);
                 
                 if (elapsed < totalDur) {{
