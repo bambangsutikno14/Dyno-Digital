@@ -296,14 +296,17 @@ with st.sidebar:
 
     expert_on = st.toggle("🧪 Valve & Flow Specs", value=True)
     if expert_on:
-        in_v_in = st.number_input("Valve In (mm)", value=float(std['valve_in']), step=0.5)
-        in_v_out = st.number_input("Valve Out (mm)", value=float(std['valve_out']), step=0.5)
+        in_v_in = st.number_input("Valve In (mm) [Satuan/Per Klep]", value=float(std['valve_in']), step=0.5)
+        in_v_out = st.number_input("Valve Out (mm) [Satuan/Per Klep]", value=float(std['valve_out']), step=0.5)
         in_venturi = st.number_input("Throttle / Venturi (mm)", value=float(std['venturi']), step=0.5)
         in_dur_in = st.slider("Cam Duration In (°)", 200, 320, 240)
         in_dur_out = st.slider("Cam Duration Out (°)", 200, 320, 240)
         in_afr = st.slider("Target AFR Lambda", 11.0, 15.0, 13.0, step=0.1)
+        target_piston_speed = st.number_input("Target Piston Speed (m/s)", value=21.0, step=0.5)
+        target_gas_speed = st.number_input("Target Gas Speed (m/s)", value=100.0, step=1.0)
     else:
         in_v_in, in_v_out, in_venturi, in_dur_in, in_dur_out, in_afr = std['valve_in'], std['valve_out'], std['venturi'], 240, 240, 13.0
+        target_piston_speed, target_gas_speed = 21.0, 100.0
 
     in_joki = st.number_input("Rider Weight (kg)", value=65.0, step=1.0)
 
@@ -722,7 +725,7 @@ def render_full_dyno_studio_v16(history_list, auto_start, current_run_model_name
                 if (elapsed <= 5.0) {{
                     currentRpm = 1200 + Math.sin(elapsed * 6) * 30;
                     currentSpeed = 0;
-                    currentAfr = 14.7 + Math.sin(elapsed * 4) * 0.2;
+                    currentAfr = 10.0;
                     visiblePoints = 0;
                 }} else if (elapsed <= 15.0) {{
                     const progress = (elapsed - 5.0) / 10.0;
@@ -736,7 +739,7 @@ def render_full_dyno_studio_v16(history_list, auto_start, current_run_model_name
                     currentRpm = limitRpm - decelProg * (limitRpm - 1200);
                     currentSpeed = topSpeed * (1.0 - decelProg);
                     visiblePoints = activeRun.rpms.length;
-                    currentAfr = 14.7;
+                    currentAfr = 10.0;
                 }} else {{
                     currentRpm = 0;
                     currentSpeed = 0;
@@ -849,6 +852,23 @@ if st.session_state.history:
         "CC": "{:.2f}", "CR": "{:.2f}", "AFR": "{:.2f}",
         "Max_Wheel_HP": "{:.2f}", "Max_Nm": "{:.2f}"
     }), use_container_width=True, hide_index=True)
+
+    # DATA FLOWBENCH & VOLUMETRIC EFFICIENCY
+    st.divider()
+    st.markdown("### 💨 DATA PROYEKSI FLOWBENCH & VE")
+    col_fb1, col_fb2, col_fb3 = st.columns(3)
+    
+    valve_area_mm2 = (math.pi * ((latest['v_in'] / 2) ** 2))
+    if in_klep == 4:
+        valve_area_mm2 *= 2
+    cfm_proj = round(valve_area_mm2 * 0.05, 1)
+    
+    with col_fb1:
+        st.metric("Target Peak Power RPM", f"{latest['RPM_HP']} RPM")
+    with col_fb2:
+        st.metric("Volumetric Efficiency (VE)", "100.0 % (Peak)")
+    with col_fb3:
+        st.metric("Proyeksi Flowbench", f"{cfm_proj} CFM")
 
     # EXPERT ENGINE ANALYSIS & GRAHAM BELL RECOMMENDATIONS
     st.divider()
