@@ -146,9 +146,16 @@ if 'run_trigger' not in st.session_state:
     st.session_state.run_trigger = False
 
 # ==========================================
-# 3. ACCURATE THERMODYNAMIC ENGINE & DYNAMIC TOP SPEED
+# 3. ACCURATE THERMODYNAMIC ENGINE (ODE SIMULATOR MODULE)
 # ==========================================
 def calculate_smooth_dyno_curve(std_spec, in_bore, in_stroke, in_vhead, in_v_in, in_v_out, in_venturi, in_dur_in, in_dur_out, in_afr, user_limit_rpm, in_joki):
+    # Konstanta Statis Baseline XMAX 250 (Engine Calculator Module)
+    N_PEAK = 5500.0
+    VE_PEAK = 0.893
+    ETA_OVERALL = 0.33
+    SIGMA = 4380.0
+    AFR_WOT = 13.0
+    
     cc_calc = float((0.785398 * float(in_bore)**2 * float(in_stroke)) / 1000.0)
     cr_calc = float((cc_calc + float(in_vhead)) / float(in_vhead))
     
@@ -163,10 +170,11 @@ def calculate_smooth_dyno_curve(std_spec, in_bore, in_stroke, in_vhead, in_v_in,
     cr_std = (std_cc + std_spec['v_head']) / std_spec['v_head']
     cr_diff = cr_calc - cr_std
     
+    # Penyesuaian Thermal Factor berbasis Eta Overall (Baseline 0.33)
     if cr_calc > 14.5:
-        thermal_factor = (1.0 + cr_diff * 0.015) - ((cr_calc - 14.5) * 0.15)
+        thermal_factor = (ETA_OVERALL / 0.33) * ((1.0 + cr_diff * 0.015) - ((cr_calc - 14.5) * 0.15))
     else:
-        thermal_factor = 1.0 + cr_diff * 0.015
+        thermal_factor = (ETA_OVERALL / 0.33) * (1.0 + cr_diff * 0.015)
         
     valve_area_ratio = (in_v_in / in_bore)**2
     rpm_tq_dynamic = (82.0 * 60000.0) / (2.0 * in_stroke / valve_area_ratio)
@@ -177,7 +185,8 @@ def calculate_smooth_dyno_curve(std_spec, in_bore, in_stroke, in_vhead, in_v_in,
     tb_ratio = in_venturi / in_v_in
     tb_shift = - (0.85 - tb_ratio) * 3500.0 if tb_ratio < 0.85 else 0.0
     
-    final_rpm_tq_peak = float(np.clip(rpm_tq_dynamic + cam_shift_rpm + tb_shift, 3500.0, user_limit_rpm - 2000.0))
+    # RPM Torsi dikunci menggunakan pengaruh N_PEAK baseline dan modifikasi dinamik
+    final_rpm_tq_peak = float(np.clip(N_PEAK + (rpm_tq_dynamic - N_PEAK) * 0.1 + cam_shift_rpm + tb_shift, 3500.0, user_limit_rpm - 2000.0))
     final_rpm_hp_peak = float(np.clip(final_rpm_tq_peak + 1800.0 + (cam_dur_avg - 240.0) * 18.0, final_rpm_tq_peak + 1200.0, user_limit_rpm - 800.0))
     
     raw_rpms = np.arange(1000, int(user_limit_rpm) + 100, 100)
@@ -189,15 +198,11 @@ def calculate_smooth_dyno_curve(std_spec, in_bore, in_stroke, in_vhead, in_v_in,
         pspeed_r = (2.0 * in_stroke * r) / 60000.0
         gsin_r = ((in_bore / in_v_in)**2) * pspeed_r
         
-        if r < 1500:
-            ve_shape = 0.25 * (r / 1500.0)
-        elif r <= final_rpm_tq_peak:
-            ve_shape = 0.45 + 0.55 * math.exp(-((r - final_rpm_tq_peak) / 3600.0)**2)
-        else:
-            ve_shape = 0.45 + 0.55 * math.exp(-((r - final_rpm_tq_peak) / 2200.0)**2)
+        # Integrasi Distribusi Gaussian untuk VE berdasarkan parameter ODE
+        ve_shape = VE_PEAK * math.exp(-((r - final_rpm_tq_peak) / SIGMA)**2)
             
         if r > final_rpm_hp_peak:
-            high_rpm_decay = math.exp(-((r - final_rpm_hp_peak) / 1800.0)**1.8)
+            high_rpm_decay = math.exp(-((r - final_rpm_hp_peak) / (SIGMA * 0.4))**1.8)
             ve_shape *= high_rpm_decay
             
         choke_factor = 1.0
@@ -206,7 +211,8 @@ def calculate_smooth_dyno_curve(std_spec, in_bore, in_stroke, in_vhead, in_v_in,
         elif gsin_r > 108.0:
             choke_factor = (108.0 / gsin_r)**1.2
             
-        afr_mod = 1.0 - abs(float(in_afr) - 13.0) * 0.035
+        # Modifikator AFR dengan sentralisasi pada WOT 13.0
+        afr_mod = 1.0 - abs(float(in_afr) - AFR_WOT) * 0.035
         
         wheel_tq = wheel_tq_base * ve_shape * choke_factor * thermal_factor * afr_mod
         
@@ -242,7 +248,6 @@ def calculate_smooth_dyno_curve(std_spec, in_bore, in_stroke, in_vhead, in_v_in,
     gsout = float(((in_bore / in_v_out)**2) * pspeed)
     
     return rpms, wheel_hps, torques, afrs, max_hp, rpm_hp, max_tq, rpm_tq, cc_calc, cr_calc, pspeed, gsin, gsout, calc_top_speed
-
 # ==========================================
 # 4. SIDEBAR CONTROLS
 # ==========================================
