@@ -302,11 +302,8 @@ with st.sidebar:
         in_dur_in = st.slider("Cam Duration In (°)", 200, 320, 240)
         in_dur_out = st.slider("Cam Duration Out (°)", 200, 320, 240)
         in_afr = st.slider("Target AFR Lambda", 11.0, 15.0, 13.0, step=0.1)
-        target_piston_speed = st.number_input("Target Piston Speed (m/s)", value=21.0, step=0.5)
-        target_gas_speed = st.number_input("Target Gas Speed (m/s)", value=100.0, step=1.0)
     else:
         in_v_in, in_v_out, in_venturi, in_dur_in, in_dur_out, in_afr = std['valve_in'], std['valve_out'], std['venturi'], 240, 240, 13.0
-        target_piston_speed, target_gas_speed = 21.0, 100.0
 
     in_joki = st.number_input("Rider Weight (kg)", value=65.0, step=1.0)
 
@@ -855,8 +852,15 @@ if st.session_state.history:
 
     # DATA FLOWBENCH & VOLUMETRIC EFFICIENCY
     st.divider()
-    st.markdown("### 💨 DATA PROYEKSI FLOWBENCH & VE")
-    col_fb1, col_fb2, col_fb3 = st.columns(3)
+    st.markdown("### 💨 DATA PROYEKSI FLOWBENCH & VE (REFERENSI AXIS DYNO)")
+    
+    col_fb1, col_fb2, col_fb3, col_fb4, col_fb5 = st.columns(5)
+    
+    # Kalkulasi Volumetric Efficiency (VE) yang realistis berdasarkan efisiensi porting
+    ideal_vin = latest['bore'] * 0.52
+    base_ve = 80.0 
+    ve_adjustment = ((latest['v_in'] - ideal_vin) / ideal_vin) * 20.0
+    realistic_ve = round(min(90.0, max(60.0, base_ve + ve_adjustment)), 1)
     
     valve_area_mm2 = (math.pi * ((latest['v_in'] / 2) ** 2))
     if in_klep == 4:
@@ -864,10 +868,14 @@ if st.session_state.history:
     cfm_proj = round(valve_area_mm2 * 0.05, 1)
     
     with col_fb1:
-        st.metric("Target Peak Power RPM", f"{latest['RPM_HP']} RPM")
+        st.metric("Target Peak RPM", f"{latest['RPM_HP']} RPM")
     with col_fb2:
-        st.metric("Volumetric Efficiency (VE)", "100.0 % (Peak)")
+        st.metric("Piston Speed", f"{latest['pspeed']:.1f} m/s")
     with col_fb3:
+        st.metric("Gas Velocity (In)", f"{latest['gsin']:.1f} m/s")
+    with col_fb4:
+        st.metric("VE (Peak)", f"{realistic_ve} %")
+    with col_fb5:
         st.metric("Proyeksi Flowbench", f"{cfm_proj} CFM")
 
     # EXPERT ENGINE ANALYSIS & GRAHAM BELL RECOMMENDATIONS
